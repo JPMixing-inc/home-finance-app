@@ -674,6 +674,7 @@ h1 { background: linear-gradient(90deg, var(--text) 35%, var(--accent-2)); -webk
   .bar-row { grid-template-columns: 1fr auto; }
   .bar-row .meter { grid-column: 1 / -1; grid-row: 2; }
   .bar-value { text-align: right; }
+  .per-day { text-align: left; }
 }
 .daily-card .bar-row { grid-template-columns: 1fr auto; gap: 4px 12px; }
 .daily-card .bar-row .meter { grid-column: 1 / -1; grid-row: 2; }

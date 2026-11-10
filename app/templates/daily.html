@@ -60,8 +60,7 @@
       <div style="width: {{ c.used_pct }}%"></div></div>
     <div class="cat-foot">
       <span>{{ c.spent|money }} spent of {{ c.budget|money }}</span>
-      {% if current and c.per_day and c.group_name not in ('Housing', 'Financial')
-         and c.name not in ('Subscriptions', 'Car Payment', 'Education') %}<span>{{ c.per_day|money }}/day</span>{% endif %}
+      {% if current and c.per_day and not c.fixed %}<span>{{ c.per_day|money }}/day</span>{% endif %}
     </div>
   </a>
   {% endfor %}

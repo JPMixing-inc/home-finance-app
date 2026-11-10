@@ -943,13 +943,22 @@ def connection_delete(item_id: int):
 
 # ---------------------------------------------------------------- daily (quick budget view)
 
-def budget_state(budget: int, left: int, used: float, pace: float) -> str:
-    """ok, fast (spent noticeably more of the budget than of the month) or over."""
+# Paid in lumps (often once a month), so spending ahead of the calendar is normal for these.
+FIXED_GROUPS = ("Housing", "Financial")
+FIXED_NAMES = ("Subscriptions", "Car Payment", "Education")
+
+
+def is_fixed(c: dict) -> bool:
+    return c.get("group_name") in FIXED_GROUPS or c.get("name") in FIXED_NAMES
+
+
+def budget_state(budget: int, left: int, used: float, pace: float, fixed: bool = False) -> str:
+    """ok, fast (spent noticeably more of the budget than of the month; not for fixed bills) or over."""
     if budget <= 0:
         return "none"
     if left < 0:
         return "over"
-    return "fast" if used > pace + 0.10 else "ok"
+    return "fast" if used > pace + 0.10 and not fixed else "ok"
 
 
 @app.get("/daily")
@@ -970,10 +979,12 @@ def daily_page(request: Request, month: Optional[str] = None):
 
     def row(c):
         left = c["budget"] - c["spent"]
-        return dict(c, left=left,
+        fixed = is_fixed(c)
+        return dict(c, left=left, fixed=fixed,
                     used_pct=min(100, round(c["spent"] * 100 / c["budget"])) if c["budget"] > 0 else 0,
                     left_pct=max(0, min(100, round(left * 100 / c["budget"]))) if c["budget"] > 0 else 0,
-                    state=budget_state(c["budget"], left, c["spent"] / c["budget"] if c["budget"] > 0 else 0, pace),
+                    state=budget_state(c["budget"], left, c["spent"] / c["budget"] if c["budget"] > 0 else 0, pace,
+                                       fixed),
                     per_day=left // days_left if days_left and left > 0 else 0)
     budgeted = [row(c) for c in s["expense"] if c["budget"] > 0]
     unbudgeted = [c for c in s["expense"] if c["budget"] <= 0 and c["spent"] > 0]

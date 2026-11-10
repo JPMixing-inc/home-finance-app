@@ -21,29 +21,37 @@ def is_loopback(host: str | None) -> bool:
         return False
 
 
+def setting(key: str, default: str = "") -> str:
+    from . import db
+    conn = db.connect()
+    try:
+        row = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+    finally:
+        conn.close()
+    return row[0] if row else default
+
+
+def save_setting(key: str, value: str) -> None:
+    from . import db
+    conn = db.connect()
+    try:
+        conn.execute("INSERT INTO settings (key, value) VALUES (?, ?) "
+                     "ON CONFLICT (key) DO UPDATE SET value = excluded.value", (key, value))
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def sharing_on() -> bool:
     global _sharing
     if _sharing is None:
-        from . import db
-        conn = db.connect()
-        try:
-            row = conn.execute("SELECT value FROM settings WHERE key = ?", (SETTING,)).fetchone()
-        finally:
-            conn.close()
-        _sharing = row is None or row[0] == "1"  # on unless turned off
+        _sharing = setting(SETTING, "1") == "1"  # on unless turned off
     return _sharing
 
 
 def set_sharing(on: bool) -> None:
     global _sharing
-    from . import db
-    conn = db.connect()
-    try:
-        conn.execute("INSERT INTO settings (key, value) VALUES (?, ?) "
-                     "ON CONFLICT (key) DO UPDATE SET value = excluded.value", (SETTING, "1" if on else "0"))
-        conn.commit()
-    finally:
-        conn.close()
+    save_setting(SETTING, "1" if on else "0")
     _sharing = on
 
 

@@ -76,3 +76,13 @@ To move to a new computer, install Home Finance there, open it once, quit
 it, and copy your old data folder over the new one.
 
 Updating the app never touches your data folder.
+
+
+6. UPDATES
+----------
+Home Finance checks for a new version each time it starts. When there is
+one, it asks "Update now?". Click OK and it downloads, installs and reopens
+itself. You can also choose Tools > Check for Updates, or turn the check off
+in Settings > Updates.
+
+On a Mac, keep the app in Applications so it can update itself.

@@ -80,6 +80,18 @@
         <button class="primary" name="action" value="save">Save key</button>
       </form>
     {% endif %}
+{% if updates %}
+    <h2 id="updates">Updates</h2>
+    <p class="small">You have Home Finance <strong>{{ version }}</strong>. <a href="/update">Check for updates</a></p>
+    <form method="post" action="/settings/updates" class="row-form">
+      {% if updates.auto %}<input type="hidden" name="auto" value="0">
+        <span class="muted small grow">Checks GitHub for a new version each time Home Finance starts.</span>
+        <button class="link">Turn off</button>
+      {% else %}<input type="hidden" name="auto" value="1">
+        <span class="muted small grow">Automatic update checks are off.</span>
+        <button class="btn">Turn on</button>{% endif %}
+    </form>
+{% endif %}
     <h2>Your data</h2>
     <p class="muted small">Everything lives in one database file{% if phone %} on this computer{% else %} on the server{% endif %}.</p>
     <p><a class="btn" href="/backup">Download a backup</a> <a class="btn" href="/export.csv">Export transactions (CSV)</a></p>

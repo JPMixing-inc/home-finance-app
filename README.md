@@ -27,6 +27,7 @@ home Wi-Fi can open it too.
 - **Phone access:** scan a QR code in Settings to open it on your phone. On an iPhone, "Add to Home
   Screen" makes it feel like an app.
 - **Backups:** download the whole database or export transactions as CSV any time.
+- **Automatic updates:** checks GitHub for a new version when it starts and installs it in one click.
 
 ## Install
 
@@ -65,6 +66,20 @@ Open **Settings → Phone access** (or **Tools → Phone Access** in the menu ba
 your phone's camera, or type the address shown (something like `http://192.168.1.20:8090`), and sign
 in. The phone has to be on the same Wi-Fi, and the app has to be open on the computer; minimizing it is
 fine. Click **Turn off phone access** if you only want to use it on the computer.
+
+### Updates
+Each time Home Finance starts, it checks this repository for a newer release. If there is one, it asks
+**"Update now?"**, and a banner appears at the top of the app. Choosing to update:
+1. downloads the new version from the GitHub release,
+2. checks it against GitHub's SHA-256 checksum,
+3. installs it over the old one and reopens Home Finance.
+
+Your data folder is never touched. You can also use **Tools → Check for Updates…**, or turn the
+startup check off under **Settings → Updates**. Updates can only be started on the computer running
+the app, not from a phone.
+
+The Mac app needs to be in **Applications** (or another folder you can write to) to update itself.
+Otherwise the update page offers a download link instead.
 
 ---
 
@@ -210,8 +225,14 @@ Put it behind HTTPS (a reverse proxy) if it's reachable from outside your home.
   built for the chip of the Mac you run it on.
 - **Windows:** run `build-windows.bat` on Windows to get `dist\HomeFinance-Windows.zip`.
 - **GitHub Actions:** [`.github/workflows/build.yml`](.github/workflows/build.yml) builds and smoke-tests
-  both. Run it from the Actions tab for test builds, or push a tag such as `v1.0.1` to publish a release
-  with `RELEASE_NOTES.md` as the notes. Update `VERSION` in `HomeFinance.spec` first.
+  both. A manual run from the Actions tab also tests a Windows self-update from the latest release.
+
+**Releasing a new version:**
+1. Set `VERSION` in [`app/version.py`](app/version.py), e.g. `"1.2.0"`.
+2. Rewrite [`RELEASE_NOTES.md`](RELEASE_NOTES.md). It becomes the release page, and the app's update
+   screen shows it as "What's new".
+3. Commit, then `git tag v1.2.0 && git push && git push --tags`. The build refuses a tag that doesn't
+   match `app/version.py`. When it finishes, everyone's app offers the update the next time it starts.
 
 The apps are unsigned. Removing the first-run warnings needs an Apple Developer ID (notarization)
 and a Windows code-signing certificate.
@@ -226,7 +247,12 @@ and a Windows code-signing certificate.
 | `app/ai.py` | Claude features |
 | `app/snowball.py`, `app/ledger.py`, `app/networth.py` | debt plan, transfers/payments, net worth |
 | `app/local.py` | own-computer mode: phone access switch, QR code |
+| `app/updater.py`, `app/version.py` | update check and self-install from GitHub releases; the version number |
 | `app/templates/`, `app/static/` | HTML, CSS, JS |
 | `desktop.py` | desktop app (window and background server) |
 | `run.py` | shared startup code and the browser-based launcher |
 | `HomeFinance.spec`, `packaging/` | PyInstaller recipe and icons |
+
+## License
+
+[MIT](LICENSE). Use it, change it, share it.

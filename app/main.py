@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import base64
 import csv
+import html
 import io
 import itertools
 import json
@@ -15,6 +16,7 @@ from datetime import date
 from typing import Optional
 from urllib.parse import urlencode
 
+import markdown as md
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -23,7 +25,8 @@ from fastapi.templating import Jinja2Templates
 from markupsafe import Markup
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import ai, auth, bank_sync, brands, db, importers, ledger, local, networth, snowball
+from . import ai, auth, bank_sync, brands, db, importers, ledger, local, networth, snowball, updater
+from .version import VERSION
 
 BASE = os.path.dirname(__file__)
 MAX_UPLOAD = 20 * 1024 * 1024
@@ -43,6 +46,8 @@ async def lifespan(_app):
     finally:
         conn.close()
     bank_sync.start_scheduler()
+    if local.ENABLED and local.setting(updater.SETTING, "1") == "1":
+        updater.check_in_background()
     yield
 
 
@@ -95,7 +100,16 @@ def render(request: Request, name: str, **ctx) -> Response:
     ctx["ai_ready"] = ai.load_key() is not None
     ctx["path"] = request.url.path
     ctx["local_mode"] = local.ENABLED
+    ctx["version"] = VERSION
+    ctx["update_banner"] = (local.ENABLED and updater.available() and on_this_computer(request)
+                            and request.session.get("update_dismissed") != updater.state["latest"]
+                            and request.url.path != "/update")
+    ctx["update_latest"] = updater.state["latest"]
     return templates.TemplateResponse(request, name, ctx)
+
+
+def on_this_computer(request: Request) -> bool:
+    return local.is_loopback(request.client.host if request.client else None)
 
 
 def back(url: str) -> RedirectResponse:
@@ -117,6 +131,11 @@ async def require_login(request: Request, call_next):
     if (local.ENABLED and request.url.path != "/healthz" and not local.sharing_on()
             and not local.is_loopback(request.client.host if request.client else None)):
         return HTMLResponse(PHONES_OFF, status_code=403)
+    if request.url.path.startswith(("/update", "/api/update")):
+        # Updating is for the desktop app's own computer only, and works before anyone has logged in.
+        if not (local.ENABLED and on_this_computer(request)):
+            return HTMLResponse("Not found", status_code=404)
+        return await call_next(request)
     if not request.url.path.startswith(PUBLIC) and not request.session.get("uid"):
         if request.url.path.startswith("/api/"):
             return JSONResponse({"error": "signed out"}, status_code=401)
@@ -135,7 +154,7 @@ def get_conn() -> sqlite3.Connection:
 
 @app.get("/healthz")
 def healthz():
-    return {"ok": True, "app": "home-finance"}  # run.py looks for "app" to spot a running copy
+    return {"ok": True, "app": "home-finance", "version": VERSION}  # run.py looks for "app" to spot a running copy
 
 
 @app.get("/setup")
@@ -1356,8 +1375,9 @@ def settings_page(request: Request, msg: str = ""):
         ip = local.lan_address()
         url = f"http://{ip}:{request.url.port or 80}" if ip else ""
         phone = {"on": local.sharing_on(), "url": url, "qr": Markup(local.qr_svg(url)) if url else ""}
+    updates = {"auto": local.setting(updater.SETTING, "1") == "1"} if local.ENABLED else None
     return render(request, "settings.html", users=users, msg=msg, ai_month=ai_month, ai_total=ai_total,
-                  p=debt_plan, phone=phone)
+                  p=debt_plan, phone=phone, updates=updates)
 
 
 @app.post("/settings/phone")
@@ -1468,3 +1488,51 @@ def export_csv():
         writer.writerow([d, acct, desc, f"{cents / 100:.2f}", cat or "", notes])
     return Response(out.getvalue(), media_type="text/csv", headers={
         "Content-Disposition": f'attachment; filename="transactions-{date.today().isoformat()}.csv"'})
+
+
+# ---------------------------------------------------------------- updates (desktop app)
+
+@app.get("/update")
+async def update_page(request: Request):
+    if not updater.wait_for_check(0):
+        await run_in_threadpool(updater.check)
+    st = updater.state
+    notes = Markup(md.markdown(html.escape(st["notes"], quote=False), extensions=["tables"])) if st["notes"] else ""
+    return render(request, "update.html", st=st, available=updater.available(), notes=notes,
+                  reason=updater.why_not_automatic() if updater.available() else "",
+                  size_mb=round((st["asset"] or {}).get("size", 0) / 1048576))
+
+
+@app.post("/update/check")
+async def update_check():
+    await run_in_threadpool(updater.check)
+    return back("/update")
+
+
+@app.get("/update/dismiss")
+def update_dismiss(request: Request, next: str = "/"):
+    request.session["update_dismissed"] = updater.state["latest"]
+    return back(next if next.startswith("/") and not next.startswith("//") else "/")
+
+
+@app.post("/api/update/start")
+def update_start(request: Request):
+    if request.headers.get("x-home-finance") != "1":  # forces a CORS preflight, so other sites can't trigger it
+        return JSONResponse({"error": "missing header"}, status_code=400)
+    error = updater.start()
+    return JSONResponse({"error": error} if error else {"ok": True})
+
+
+@app.get("/api/update/status")
+def update_status():
+    st = updater.state
+    return {"phase": st["phase"], "progress": st["progress"], "error": st["error"], "latest": st["latest"]}
+
+
+@app.post("/settings/updates")
+async def update_settings(request: Request):
+    form = await request.form()
+    on = form.get("auto") == "1"
+    local.save_setting(updater.SETTING, "1" if on else "0")
+    return back("/settings?msg=" + ("Home+Finance+will+check+for+updates+when+it+starts." if on
+                                    else "Automatic+update+checks+are+off.") + "#updates")

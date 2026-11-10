@@ -11,6 +11,11 @@ jobs:
     runs-on: macos-latest  # Apple silicon
     steps:
       - uses: actions/checkout@v7
+      - name: Check the tag matches app/version.py
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          v=$(sed -n 's/^VERSION = "\(.*\)"/\1/p' app/version.py)
+          [ "v$v" = "$GITHUB_REF_NAME" ] || { echo "Tag $GITHUB_REF_NAME doesn't match app/version.py ($v)"; exit 1; }
       - uses: astral-sh/setup-uv@v10.3.3
       - run: ./build-mac.sh
       - name: Smoke test (the app's server answers)
@@ -43,6 +48,60 @@ jobs:
         with:
           name: Home Finance-Windows
           path: dist/HomeFinance-Windows.zip
+
+  # Manual runs only: build an "old" 0.0.1 Windows app, let it update itself from the latest
+  # GitHub release, and check the new version comes back up.
+  windows-update-test:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.3
+      - name: Pretend to be version 0.0.1
+        shell: pwsh
+        run: (Get-Content app/version.py) -replace 'VERSION = ".*"', 'VERSION = "0.0.1"' | Set-Content app/version.py
+      - run: build-windows.bat
+        shell: cmd
+      - name: Update from the latest release
+        shell: pwsh
+        run: |
+          $env:FINANCE_DATA = "$env:RUNNER_TEMP\upd"
+          $install = "$env:RUNNER_TEMP\install"
+          Copy-Item "dist\Home Finance" $install -Recurse
+          $exe = "$install\Home Finance.exe"
+          function Wait-Health($test) {
+            foreach ($i in 1..120) {
+              try { $h = Invoke-RestMethod http://127.0.0.1:8090/healthz -TimeoutSec 2; if (& $test $h) { return $h } } catch {}
+              Start-Sleep 1
+            }
+            throw "Timed out waiting for Home Finance"
+          }
+          try {
+            # First run creates the database; then turn off the startup prompt so no dialog is open.
+            $p = Start-Process -PassThru $exe
+            Wait-Health { $true } | Out-Null
+            Stop-Process $p -Force; Start-Sleep 2
+            uv run --no-project python -c "import sqlite3,os; c=sqlite3.connect(os.path.join(os.environ['FINANCE_DATA'],'finance.db')); c.execute('INSERT OR REPLACE INTO settings (key,value) VALUES (?,?)',('update_check','0')); c.commit()"
+            $p = Start-Process -PassThru $exe
+            $h = Wait-Health { param($h) $h.version -eq '0.0.1' }
+            "Running: $($h | ConvertTo-Json -Compress)"
+            Invoke-WebRequest http://127.0.0.1:8090/update -UseBasicParsing | Out-Null   # checks GitHub
+            Invoke-RestMethod -Method Post http://127.0.0.1:8090/api/update/start -Headers @{ 'X-Home-Finance' = '1' }
+            foreach ($i in 1..120) {
+              $s = Invoke-RestMethod http://127.0.0.1:8090/api/update/status
+              "$($s.phase) $([math]::Round($s.progress * 100))% $($s.error)"
+              if ($s.phase -in 'restarting', 'failed') { break }
+              Start-Sleep 1
+            }
+            if ($s.phase -ne 'restarting') { throw "Update didn't start: $($s.error)" }
+            Wait-Process -Id $p.Id -Timeout 60
+            $h = Wait-Health { param($h) $h.version -ne '0.0.1' }
+            "Updated and running again: $($h | ConvertTo-Json -Compress)"
+            Get-Process 'Home Finance' | Select-Object Id, Path | Format-Table | Out-String
+          } finally {
+            Get-Content "$env:FINANCE_DATA\update.log" -ErrorAction SilentlyContinue
+            Get-Process 'Home Finance' -ErrorAction SilentlyContinue | Stop-Process -Force
+          }
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')

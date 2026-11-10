@@ -1,10 +1,11 @@
-# PyInstaller recipe for the desktop app. Build with build-mac.sh or build-windows.bat
+# PyInstaller recipe for the desktop app (version comes from app/version.py). Build with build-mac.sh or build-windows.bat
 # (each must run on its own system), not directly.
+import re
 import sys
 
 from PyInstaller.utils.hooks import collect_submodules
 
-VERSION = "1.0.0"
+VERSION = re.search(r'VERSION = "(.+?)"', open("app/version.py").read()).group(1)
 MAC = sys.platform == "darwin"
 ICON = "packaging/icon.icns" if MAC else "packaging/icon.ico"
 

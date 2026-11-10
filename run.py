@@ -61,6 +61,8 @@ def is_home_finance(port: int) -> bool:
 
 def port_free(port: int) -> bool:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        if os.name != "nt":  # like uvicorn: don't count connections still closing (after a restart) as "in use"
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
             s.bind(("0.0.0.0", port))
             return True

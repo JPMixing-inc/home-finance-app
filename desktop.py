@@ -81,10 +81,27 @@ def main() -> None:
     menu = [Menu("Tools", [
         MenuAction("Open in Web Browser", lambda: webbrowser.open(current_page())),
         MenuAction("Phone Access…", lambda: window.load_url(home + "settings#phone")),
+        MenuAction("Check for Updates…", lambda: window.load_url(home + "update")),
         MenuSeparator(),
         MenuAction("Show Data Folder", lambda: show_folder(data_dir)),
     ])]
-    webview.start(menu=menu, private_mode=False, storage_path=os.path.join(data_dir, "window"))
+
+    def offer_update() -> None:
+        """At startup: if GitHub has a newer release, ask whether to install it now."""
+        from app import local, updater
+        from app.version import VERSION
+        updater.on_restart = window.destroy  # the updater closes the app, then swaps files and reopens it
+        if local.setting(updater.SETTING, "1") != "1":
+            return
+        if not updater.wait_for_check(20) or not updater.available():
+            return
+        message = (f"Home Finance {updater.state['latest']} is available. You have {VERSION}.\n\n"
+                   "Update now? It takes a minute, and your data isn't touched.")
+        if window.create_confirmation_dialog("Update available", message):
+            window.load_url(home + "update?start=1")
+
+    webview.start(offer_update if server else None, menu=menu, private_mode=False,
+                  storage_path=os.path.join(data_dir, "window"))
 
     if server:  # window closed: stop serving phones too
         server.should_exit = True

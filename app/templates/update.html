@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Updates · Home Finance{% endblock %}
+{% block main_class %}narrow{% endblock %}
+{% block content %}
+<h1>Updates</h1>
+<section class="card">
+{% if available %}
+  <h2>Home Finance {{ st.latest }} is available</h2>
+  <p class="muted">You have {{ version }}.</p>
+  {% if reason %}
+    <p>{{ reason }}</p>
+    <p><a class="btn primary" href="{{ st.page }}" target="_blank" rel="noopener">Download from GitHub</a></p>
+  {% else %}
+    <p><button class="primary" id="update-now" type="button">Update now</button></p>
+    <p class="muted small">Downloads about {{ size_mb }} MB from GitHub, checks it, installs it, and restarts Home Finance.
+      Your accounts and data aren't touched.</p>
+    <div id="update-progress" hidden>
+      <progress id="update-bar" max="1" value="0" style="width:100%"></progress>
+      <p id="update-msg" class="small"></p>
+    </div>
+  {% endif %}
+  {% if notes %}<h3>What's new</h3><div class="release-notes">{{ notes }}</div>{% endif %}
+  <p class="small"><a href="{{ st.page }}" target="_blank" rel="noopener">Release page on GitHub</a></p>
+{% elif st.error and not st.latest %}
+  <p class="error">{{ st.error }}</p>
+  <form method="post" action="/update/check"><button class="btn">Try again</button></form>
+{% else %}
+  <h2>You're up to date</h2>
+  <p class="muted">Home Finance {{ version }} is the latest version.</p>
+  <form method="post" action="/update/check"><button class="btn">Check again</button></form>
+{% endif %}
+</section>
+
+{% if available and not reason %}
+<script>
+(() => {
+  const btn = document.getElementById("update-now"), box = document.getElementById("update-progress");
+  const bar = document.getElementById("update-bar"), msg = document.getElementById("update-msg");
+  const current = {{ version|tojson }};
+
+  async function start() {
+    btn.disabled = true; box.hidden = false; msg.textContent = "Starting…";
+    try {
+      const res = await fetch("/api/update/start", {method: "POST", headers: {"X-Home-Finance": "1"}});
+      const data = await res.json();
+      if (data.error) { msg.textContent = data.error; btn.disabled = false; return; }
+    } catch (e) { msg.textContent = "Couldn't start the update."; btn.disabled = false; return; }
+    poll();
+  }
+
+  async function poll() {
+    let d;
+    try { d = await (await fetch("/api/update/status", {cache: "no-store"})).json(); }
+    catch (e) { return waitForNewVersion(); }
+    bar.value = d.progress;
+    if (d.phase === "downloading") msg.textContent = `Downloading… ${Math.round(d.progress * 100)}%`;
+    else if (d.phase === "installing") msg.textContent = "Installing…";
+    else if (d.phase === "restarting") { msg.textContent = "Restarting Home Finance…"; return waitForNewVersion(); }
+    else if (d.phase === "failed") { msg.textContent = d.error || "The update failed."; btn.disabled = false; return; }
+    setTimeout(poll, 400);
+  }
+
+  // In a browser tab the page outlives the app; reload once the new version is answering.
+  function waitForNewVersion() {
+    setTimeout(async function again() {
+      try {
+        const h = await (await fetch("/healthz", {cache: "no-store"})).json();
+        if (h.version && h.version !== current) { location.href = "/"; return; }
+      } catch (e) { /* still restarting */ }
+      setTimeout(again, 1000);
+    }, 2500);
+  }
+
+  btn.addEventListener("click", start);
+  if (new URLSearchParams(location.search).get("start") === "1") start();
+})();
+</script>
+{% endif %}
+{% endblock %}

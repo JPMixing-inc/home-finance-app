@@ -1,8 +1,24 @@
-## Home Finance 1.0.0: first desktop release
+## Home Finance 1.1.0: automatic updates
 
-Home Finance is a private household budget app that now installs like a normal app on Mac and
-Windows. Everything stays in one file on your computer. Phones on your Wi-Fi can use it while the app
-is open.
+### New
+- **Automatic updates.** Home Finance checks GitHub for a new version each time it starts. When there
+  is one, it asks **"Update now?"** and shows a banner. One click downloads the update, checks it
+  against GitHub's SHA-256 checksum, installs it and reopens the app. Your data isn't touched.
+  - **Tools → Check for Updates…** checks any time.
+  - **Settings → Updates** shows your version and turns the startup check on or off.
+  - Updates can only be started on the computer running the app, not from a phone.
+- **MIT license:** the code is now free to use, change and share.
+
+### Fixed
+- After a restart, Home Finance sometimes moved to port 8091, which broke the address saved on phones.
+  It now keeps port 8090.
+
+### Updating from 1.0.0
+1.0.0 can't update itself, so install 1.1.0 by hand once:
+- **Mac:** download the .dmg below and drag Home Finance into Applications, replacing the old one.
+- **Windows:** extract the zip and copy its **Home Finance** folder over your old one.
+
+Your data stays where it is. From 1.1.0 on, updates install themselves.
 
 ### Downloads
 | File | For |
@@ -10,35 +26,11 @@ is open.
 | **HomeFinance-Mac-AppleSilicon.dmg** | Macs with Apple silicon (M1 or newer), macOS 11+ |
 | **HomeFinance-Windows.zip** | Windows 10 and 11 (64-bit) |
 
-**Mac:** open the .dmg and drag Home Finance into Applications. On first open, go to System Settings →
-Privacy & Security → **Open Anyway** (the app isn't signed yet).
-**Windows:** extract the zip and run **Home Finance.exe**. If SmartScreen appears, click
-**More info → Run anyway**. Allow **Private networks** at the firewall prompt so phones can connect.
-
-Each download includes **Read Me First.txt**. The full guide, including setting up **Plaid bank sync**
-and the **Claude API**, is in the [README](https://github.com/JPMixing-inc/home-finance-app#readme).
-
-### What's in it
-- **Desktop app** with its own window and a **Tools** menu (Open in Web Browser, Phone Access, Show
-  Data Folder). Quitting the app stops the server.
-- **Phone access:** Settings shows your phone address and a **QR code** to scan. It's on by default
-  and can be switched off so only the computer can open the app.
-- **Your own setup:** first launch asks you to create a login. Add more logins for the household in
-  Settings.
-- **Budgeting:** dashboard, transactions with rules, monthly budgets, daily spending pace, net worth,
-  and 12-month history.
-- **Import** CSV, OFX and QFX bank exports, with duplicate detection and undo.
-- **Bank sync** through your own Plaid account (free Trial plan: up to 10 banks), syncing every 2 hours.
-- **Debt snowball:** debt-free date, progress per debt, and student-loan import from a statement PDF.
-- **Claude AI** with your own Anthropic API key: Ask Claude, category suggestions and monthly
-  summaries, with spending shown in Settings.
-- **Backups:** download the database or export transactions as CSV from Settings.
+First time installing? See the [setup guide](https://github.com/JPMixing-inc/home-finance-app#install),
+including [Plaid bank sync](https://github.com/JPMixing-inc/home-finance-app#bank-sync-with-plaid) and
+the [Claude API](https://github.com/JPMixing-inc/home-finance-app#ai-features-with-claude).
 
 ### Known limitations
-- **Unsigned builds:** macOS and Windows show a warning the first time (see above).
-- **No Intel Mac build yet:** Intel Macs can [run from source](https://github.com/JPMixing-inc/home-finance-app#run-from-source).
-- **Some banks (such as Chase) won't sign in inside the app window.** Use **Tools → Open in Web
-  Browser** and connect the bank from there.
-- **Phone access uses plain HTTP** on your local network. Use it on a home network you trust.
-- **Bank sync only runs while the app is open.** Anything missed arrives at the next sync, or click
-  **Sync all now**.
+- The apps are unsigned, so macOS and Windows warn the first time you open them.
+- No Intel Mac build yet. Intel Macs can [run from source](https://github.com/JPMixing-inc/home-finance-app#run-from-source).
+- Phone access uses plain HTTP on your local network. Use it on a home network you trust.

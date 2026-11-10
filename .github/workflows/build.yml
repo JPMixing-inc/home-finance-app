@@ -11,7 +11,7 @@ jobs:
     runs-on: macos-latest  # Apple silicon
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.3.3
       - run: ./build-mac.sh
       - name: Smoke test (the app's server answers)
         run: |
@@ -27,7 +27,7 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.3.3
       - run: build-windows.bat
         shell: cmd
       - name: Smoke test (the app's server answers)

@@ -1,0 +1,11 @@
+<form method="post" action="/connections/keys" class="row-form">
+  <label class="grow">client_id <input name="client_id" autocomplete="off" spellcheck="false" {% if not config %}required{% endif %}></label>
+  <label class="grow">Secret <input name="secret" type="password" autocomplete="off" {% if not config %}required{% endif %}></label>
+  <label>Environment
+    <select name="env">
+      <option value="production" {% if not config or config.env == 'production' %}selected{% endif %}>Production (real banks)</option>
+      <option value="sandbox" {% if config and config.env == 'sandbox' %}selected{% endif %}>Sandbox (fake test bank)</option>
+    </select>
+  </label>
+  <button class="primary">Save keys</button>
+</form>

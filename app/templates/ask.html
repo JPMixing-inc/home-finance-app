@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block title %}Ask Claude · Home Finance{% endblock %}
+{% block content %}
+<div class="card-head">
+  <h1>Ask Claude</h1>
+  {% if chat_id %}<a class="btn" href="/ask">New chat</a>{% endif %}
+</div>
+
+{% if not ai_ready %}
+<div class="card empty">
+  <p>Claude isn't set up yet. Add an Anthropic API key under <a href="/settings#claude">Settings</a>.</p>
+</div>
+{% else %}
+<div class="ask-layout">
+  <section class="card chat">
+    <div id="thread" class="thread">
+      {% if not history %}
+      <div class="chat-empty">
+        <p class="muted">Ask anything about your money. Claude looks up the answer in your accounts and transactions.</p>
+        <div class="examples">
+          {% for q in ["How much did we spend on restaurants this month vs last month?",
+                       "What subscriptions are we paying for?",
+                       "What were our 10 biggest purchases this year?",
+                       "Which categories are we over budget in?"] %}
+            <button type="button" class="chip" data-example>{{ q }}</button>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+      {% for m in history %}
+        <div class="msg {{ m.role }}">{{ m.html|safe }}</div>
+      {% endfor %}
+    </div>
+    <form id="ask-form" class="ask-form" autocomplete="off">
+      <input type="hidden" name="chat_id" value="{{ chat_id }}">
+      <textarea name="question" rows="1" placeholder="Ask about your spending, budget, accounts…" required></textarea>
+      <button class="primary">Ask</button>
+    </form>
+    <p class="muted small fine-print">Each answer costs a few cents of Anthropic credit. Claude can read your budget data but can't change it.</p>
+  </section>
+
+  {% if chats %}
+  <aside class="card past-chats">
+    <h2>Recent chats</h2>
+    <ul>
+      {% for c in chats %}
+      <li {% if chat_id == c.id|string %}class="current"{% endif %}>
+        <a href="/ask?chat={{ c.id }}">{{ c.title }}</a>
+        <span class="muted small">{{ c.username or '' }} · {{ c.updated_at[:10] }}</span>
+        <form method="post" action="/ask/{{ c.id }}/delete" data-confirm="Delete this chat?"><button class="link danger small" aria-label="Delete chat">✕</button></form>
+      </li>
+      {% endfor %}
+    </ul>
+  </aside>
+  {% endif %}
+</div>
+
+<script>
+  const form = document.getElementById("ask-form");
+  const thread = document.getElementById("thread");
+  const box = form.querySelector("textarea");
+  const button = form.querySelector("button");
+
+  function add(role, html) {
+    thread.querySelector(".chat-empty")?.remove();
+    const el = document.createElement("div");
+    el.className = "msg " + role;
+    el.innerHTML = html;
+    thread.appendChild(el);
+    el.scrollIntoView({behavior: "smooth", block: "end"});
+    return el;
+  }
+  function escapeHtml(text) {
+    const d = document.createElement("div");
+    d.textContent = text;
+    return d.innerHTML;
+  }
+  box.addEventListener("input", () => { box.style.height = "auto"; box.style.height = Math.min(box.scrollHeight, 160) + "px"; });
+  box.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); form.requestSubmit(); }
+  });
+  document.querySelectorAll("[data-example]").forEach((b) =>
+    b.addEventListener("click", () => { box.value = b.textContent; form.requestSubmit(); }));
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const question = box.value.trim();
+    if (!question || button.disabled) return;
+    add("user", escapeHtml(question));
+    box.value = ""; box.style.height = "auto";
+    button.disabled = true;
+    const pending = add("assistant thinking", "<span class='dots'>Looking at your numbers</span>");
+    try {
+      const res = await fetch("/api/ask", {
+        method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({question, chat_id: form.chat_id.value}),
+      });
+      if (res.status === 401) { location.href = "/login"; return; }
+      const data = await res.json();
+      pending.remove();
+      if (!res.ok) { add("assistant error", escapeHtml(data.error || "Something went wrong.")); return; }
+      add("assistant", data.html + `<div class="cost muted small">${data.cost}</div>`);
+      if (!form.chat_id.value) {
+        form.chat_id.value = data.chat_id;
+        history.replaceState(null, "", "/ask?chat=" + data.chat_id);
+      }
+    } catch (err) {
+      pending.remove();
+      add("assistant error", "Couldn't reach the server.");
+    } finally {
+      button.disabled = false;
+      box.focus();
+    }
+  });
+</script>
+{% endif %}
+{% endblock %}

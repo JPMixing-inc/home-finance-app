@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}Transactions · Home Finance{% endblock %}
+{% block content %}
+{% set extra = '&account=' ~ account ~ '&category=' ~ category ~ '&q=' ~ (q|urlencode) %}
+{% if month == 'all' %}
+  <div class="month-nav"><h1>All transactions</h1></div>
+{% else %}
+  {% include "_month_nav.html" %}
+{% endif %}
+
+<form class="filters" method="get">
+  <input type="hidden" name="month" value="{{ month }}">
+  <input type="search" name="q" value="{{ q }}" placeholder="Search descriptions and notes">
+  <select name="account" aria-label="Account">
+    <option value="">All accounts</option>
+    {% for a in accounts %}<option value="{{ a.id }}" {% if account == a.id|string %}selected{% endif %}>{{ a.name }}</option>{% endfor %}
+  </select>
+  <select name="category" aria-label="Category">
+    <option value="">All categories</option>
+    <option value="none" {% if category == 'none' %}selected{% endif %}>Uncategorized</option>
+    {% for group, items in cats %}
+      <optgroup label="{{ group }}">
+      {% for c in items %}<option value="{{ c.id }}" {% if category == c.id|string %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
+      </optgroup>
+    {% endfor %}
+  </select>
+  <button class="btn">Filter</button>
+  {% if month == 'all' %}
+    <a class="btn" href="?{{ extra[1:] }}">This month</a>
+  {% else %}
+    <a class="btn" href="?month=all{{ extra }}">All months</a>
+  {% endif %}
+</form>
+
+<details class="card add-tx">
+  <summary>Add a transaction by hand</summary>
+  {% if accounts %}
+  <form method="post" action="/transactions/new" class="row-form">
+    <label>Date <input type="date" name="date" value="{{ today }}" required></label>
+    <label class="grow">Description <input name="description" required></label>
+    <label>Amount <input name="amount" inputmode="decimal" placeholder="0.00" required></label>
+    <label>Type
+      <select name="direction"><option value="out">Money out</option><option value="in">Money in</option></select>
+    </label>
+    <label>Account
+      <select name="account_id">{% for a in accounts %}<option value="{{ a.id }}">{{ a.name }}</option>{% endfor %}</select>
+    </label>
+    <label>Category
+      <select name="category_id">
+        <option value="">Uncategorized</option>
+        {% for group, items in cats %}<optgroup label="{{ group }}">{% for c in items %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</optgroup>{% endfor %}
+      </select>
+    </label>
+    <button class="primary">Add</button>
+  </form>
+  {% else %}
+  <p class="muted"><a href="/accounts">Add an account</a> first.</p>
+  {% endif %}
+</details>
+
+{% set uncat_rows = rows|selectattr('category_id', 'none')|list %}
+<div class="summary-row">
+  <p class="muted summary-line">{{ rows|length }} transaction{{ 's' if rows|length != 1 }} · net {{ total|money(true) }}</p>
+  {% if ai_ready and uncat_rows %}
+  <form method="post" action="/ai/categorize" data-busy="Claude is categorizing…">
+    <input type="hidden" name="back" value="{{ request.url.path }}{{ '?' ~ request.url.query if request.url.query }}">
+    {% for t in uncat_rows[:300] %}<input type="hidden" name="tx" value="{{ t.id }}">{% endfor %}
+    <button class="btn">✦ Suggest categories for {{ [uncat_rows|length, 300]|min }} uncategorized</button>
+  </form>
+  {% endif %}
+</div>
+
+{% if rows %}
+<div class="card table-card">
+<table class="tx-table">
+  <thead><tr><th>Date</th><th>Description</th><th>Category</th><th class="num">Amount</th><th></th></tr></thead>
+  <tbody>
+  {% for t in rows %}
+    <tr class="{{ 'uncat' if not t.category_id }}" {{ bank_attrs(brands.get(t.account_id)) }}>
+      <td class="date">{{ t.date }}</td>
+      <td>
+        <div class="tx-desc">{{ t.description }}</div>
+        <div class="muted small">{{ bank_mark(brands.get(t.account_id)) }}{{ t.account }}{% if t.pair_account %} · ↔ payment {{ 'to' if t.amount_cents < 0 else 'from' }} {{ t.pair_account }}{% endif %}</div>
+        <input class="note" data-tx="{{ t.id }}" value="{{ t.notes }}" placeholder="Add a note" aria-label="Note">
+      </td>
+      <td>
+        <select class="cat-select" data-tx="{{ t.id }}" aria-label="Category">
+          <option value="">Uncategorized</option>
+          {% for group, items in cats %}
+            <optgroup label="{{ group }}">
+            {% for c in items %}<option value="{{ c.id }}" {% if t.category_id == c.id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
+            </optgroup>
+          {% endfor %}
+        </select>
+      </td>
+      <td class="num amount {{ 'pos' if t.amount_cents > 0 }}">{{ t.amount_cents|money(true) }}</td>
+      <td>
+        <form method="post" action="/transactions/{{ t.id }}/delete" data-confirm="Delete this transaction?">
+          <button class="link danger" aria-label="Delete">✕</button>
+        </form>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+<div class="card empty"><p class="muted">No transactions match. <a href="/import">Import some</a>.</p></div>
+{% endif %}
+<div id="toast" role="status" aria-live="polite"></div>
+{% endblock %}

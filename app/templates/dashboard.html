@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+{% block content %}
+{% include "_month_nav.html" %}
+
+{% if not has_data %}
+<div class="card empty">
+  <h2>Let's get started</h2>
+  <ol>
+    <li><a href="/accounts">Add your bank accounts and cards</a></li>
+    <li><a href="/import">Import a CSV, OFX or QFX export</a> from your bank's website</li>
+    <li><a href="/budget">Set a monthly budget</a> for each category</li>
+  </ol>
+</div>
+{% endif %}
+
+{% if plan.target %}
+{% set t = plan.target %}
+<a class="card snow-card" href="/snowball">
+  <div class="snow-card-main">
+    <span class="eyebrow">Debt snowball · now paying off</span>
+    <div class="snow-card-title"><strong>{{ t.title }}</strong> <span>{{ t.balance|money }} left</span></div>
+    <div class="track"><div class="fill" style="width: {{ t.pct }}%"></div></div>
+    <span class="muted small">{{ t.pct }}% paid{% if t.payoff_date %} · gone by {{ t.payoff_date.strftime('%B %Y') }}{% endif %}{% if plan.next %} · then {{ plan.next.title }}{% endif %}</span>
+  </div>
+  <div class="snow-card-spark">
+    <script type="application/json" id="spark-data">{{ plan.chart|tojson }}</script>
+    <div class="chart" data-chart="spark" data-src="spark-data" data-height="64"></div>
+  </div>
+  <div class="snow-card-side">
+    <span class="eyebrow">Total debt</span>
+    <strong>{{ plan.total|money }}</strong>
+    <span class="muted small">{% if plan.debt_free %}Debt-free by {{ plan.debt_free.strftime('%b %Y') }}{% endif %}</span>
+  </div>
+</a>
+{% endif %}
+
+<section class="card worth-card">
+  <div class="worth-head">
+    <div>
+      <span class="eyebrow">Net worth</span>
+      <div class="worth-value {{ 'neg' if worth.net < 0 }}">{{ worth.net|money }}</div>
+      <span class="muted small">{{ worth.assets|money }} owned − {{ worth.owed|money }} owed
+        {% if worth.change %}· <span class="{{ 'pos' if worth.change.amount > 0 else 'neg' if worth.change.amount < 0 }}">{{ worth.change.amount|money(true) }}</span> since {{ worth.change.since }}{% endif %}</span>
+    </div>
+    <div class="worth-tiles">
+      {% for key in ['cash', 'savings', 'investments', 'debt'] %}{% set g = worth.groups[key] %}
+      <div class="worth-tile">
+        <span class="label">{{ g.label }}</span>
+        <span class="value {{ 'neg' if g.total < 0 }}">{{ g.total|money }}</span>
+        <span class="muted small">{{ g['items']|length }} account{{ 's' if g['items']|length != 1 }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  <details class="worth-details">
+    <summary>See accounts</summary>
+    <div class="worth-groups">
+      {% for key in ['cash', 'savings', 'investments', 'debt'] %}{% set g = worth.groups[key] %}
+      {% if g['items'] %}
+      <div>
+        <h3>{{ g.label }} <span class="muted">{{ g.total|money }}</span></h3>
+        <ul class="worth-list">
+          {% for i in g['items'] %}
+          <li {{ bank_attrs(brands.get(i.id)) if i.id else '' }}>
+            <span>{{ bank_mark(brands.get(i.id)) if i.id else '' }}{% if i.group %}<span class="badge">{{ i.group }}</span> {% endif %}{{ i.name }}</span>
+            <span class="{{ 'neg' if i.balance < 0 }}">{{ i.balance|money }}</span>
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+      {% endfor %}
+    </div>
+    {% if worth.missing %}<p class="muted small">Not counted (no balance yet): {{ worth.missing|join(', ') }}.</p>{% endif %}
+  </details>
+</section>
+
+<section class="tiles">
+  <div class="tile">
+    <span class="label">Income</span>
+    <span class="value">{{ s.income|money }}</span>
+  </div>
+  <div class="tile">
+    <span class="label">Spent</span>
+    <span class="value">{{ s.spent|money }}</span>
+  </div>
+  <div class="tile">
+    <span class="label">Net</span>
+    <span class="value {{ 'neg' if s.net < 0 else 'pos' if s.net > 0 }}">{{ s.net|money(true) }}</span>
+  </div>
+  <div class="tile">
+    <span class="label">Left in budget</span>
+    {% if s.budgeted %}
+      <span class="value {{ 'neg' if s.left < 0 }}">{{ s.left|money }}</span>
+      <span class="sub">of {{ s.budgeted|money }} budgeted</span>
+    {% else %}
+      <span class="value muted">—</span>
+      <span class="sub"><a href="/budget?month={{ month }}">Set a budget</a></span>
+    {% endif %}
+  </div>
+</section>
+
+{% if s.uncat.n %}
+<a class="notice" href="/transactions?month={{ month }}&category=none">
+  <strong>{{ s.uncat.n }}</strong> transaction{{ 's' if s.uncat.n != 1 }} this month need{{ 's' if s.uncat.n == 1 }} a category →
+</a>
+{% endif %}
+
+{% if ai_ready and has_data %}
+<section class="card summary" id="summary">
+  <div class="card-head">
+    <h2>Claude's take on {{ month|month_label }}</h2>
+    <form method="post" action="/ai/summary" data-busy="Writing…">
+      <input type="hidden" name="month" value="{{ month }}">
+      <button class="btn">{{ 'Refresh' if summary else 'Write a summary' }}</button>
+    </form>
+  </div>
+  {% if ai_error %}<p class="error">{{ ai_error }}</p>{% endif %}
+  {% if summary %}
+    <div class="summary-body">{{ summary.html|safe }}</div>
+    <p class="muted small">Written {{ summary.created_at[:16] }}. Refresh after importing or categorizing more.</p>
+  {% else %}
+    <p class="muted">A few bullet points on how this month is going: budget, changes from earlier months, new subscriptions and anything odd. Takes about half a minute and a few cents.</p>
+  {% endif %}
+</section>
+{% endif %}
+
+<section class="card chart-card">
+  <div class="card-head">
+    <h2>Last 12 months</h2>
+    <div class="legend">
+      <span><i class="key-box" style="background: var(--series-2)"></i>Income</span>
+      <span><i class="key-box" style="background: var(--series-1)"></i>Spending</span>
+    </div>
+  </div>
+  <script type="application/json" id="trend-data">{{ trend|tojson }}</script>
+  <div class="chart" data-chart="trend" data-src="trend-data" data-height="240"></div>
+  <details class="chart-table">
+    <summary>Show as a table</summary>
+    <table class="plain small">
+      <thead><tr><th>Month</th><th class="num">Income</th><th class="num">Spending</th><th class="num">Net</th></tr></thead>
+      <tbody>{% for r in trend %}<tr><td>{{ r.label }}</td><td class="num">{{ r.income|money }}</td><td class="num">{{ r.spent|money }}</td><td class="num">{{ (r.income - r.spent)|money(true) }}</td></tr>{% endfor %}</tbody>
+    </table>
+  </details>
+</section>
+
+<div class="columns">
+  <section class="card">
+    <div class="card-head">
+      <h2>Spending by category</h2>
+      <a href="/budget?month={{ month }}">Edit budget</a>
+    </div>
+    {% if tracked or s.uncat.spent %}
+    <ul class="meters">
+      {% for c in tracked %}
+      <li title="{{ c.name }}: {{ c.spent|money }} spent{% if c.budget %} of {{ c.budget|money }}{% endif %}">
+        <a class="meter-name" href="/transactions?month={{ month }}&category={{ c.id }}">{{ c.name }}</a>
+        <span class="meter-value">
+          {{ c.spent|money }}{% if c.budget %} <span class="muted">of {{ c.budget|money }}</span>{% endif %}
+        </span>
+        {% if c.budget %}
+          <div class="track"><div class="fill {{ 'over' if c.remaining < 0 }}" style="width: {{ c.pct }}%"></div></div>
+          {% if c.remaining < 0 %}
+            <span class="meter-note status-critical">▲ Over by {{ (-c.remaining)|money }}</span>
+          {% else %}
+            <span class="meter-note muted">{{ c.remaining|money }} left</span>
+          {% endif %}
+        {% else %}
+          <span class="meter-note muted">No budget set</span>
+        {% endif %}
+      </li>
+      {% endfor %}
+      {% if s.uncat.spent %}
+      <li>
+        <a class="meter-name" href="/transactions?month={{ month }}&category=none">Uncategorized</a>
+        <span class="meter-value">{{ s.uncat.spent|money }}</span>
+        <span class="meter-note muted">Needs a category</span>
+      </li>
+      {% endif %}
+    </ul>
+    {% else %}
+      <p class="muted">No spending recorded for {{ month|month_label }}.</p>
+    {% endif %}
+  </section>
+
+  <section class="card">
+    <div class="card-head">
+      <h2>Recent transactions</h2>
+      <a href="/transactions">See all</a>
+    </div>
+    {% if recent %}
+    <ul class="tx-list">
+      {% for t in recent %}
+      <li {{ bank_attrs(brands.get(t.account_id)) }}>
+        <div>
+          <div class="tx-desc">{{ t.description }}</div>
+          <div class="muted small">{{ t.date }} · {{ bank_mark(brands.get(t.account_id)) }}{{ t.account }}{% if t.category %} · {{ t.category }}{% endif %}</div>
+        </div>
+        <span class="amount {{ 'pos' if t.amount_cents > 0 }}">{{ t.amount_cents|money(true) }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+      <p class="muted">Nothing yet. <a href="/import">Import transactions</a>.</p>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

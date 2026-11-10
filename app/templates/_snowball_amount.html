@@ -1,0 +1,21 @@
+<form method="post" action="/snowball/extra" class="row-form amount-form" id="snowball-amount">
+  {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+  <label>Each month I'll put toward debt
+    <input name="amount" inputmode="decimal" value="{{ '%.2f'|format(p.amount / 100) if p.amount else '' }}" placeholder="e.g. 3000.00">
+  </label>
+  <label>That amount is
+    <select name="mode">
+      <option value="total" {% if p.mode == 'total' %}selected{% endif %}>my total for all debts (minimums included)</option>
+      <option value="extra" {% if p.mode == 'extra' %}selected{% endif %}>extra, on top of the minimums</option>
+    </select>
+  </label>
+  <button class="primary">Save</button>
+</form>
+<p class="small amount-breakdown">
+  Minimums {{ p.min_total|money }} + extra to the target {{ p.extra|money }} =
+  <strong>{{ (p.min_total + p.extra)|money }} a month</strong> toward debt.
+</p>
+{% if p.short %}
+<p class="small status-critical">▲ That's {{ p.short|money }} less than this month's minimum payments ({{ p.min_total|money }}).
+  The plan assumes the minimums get paid anyway, with nothing extra for the target.</p>
+{% endif %}

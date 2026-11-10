@@ -1,0 +1,269 @@
+{% extends "base.html" %}
+{% block title %}Debt snowball · Home Finance{% endblock %}
+{% block content %}
+{% macro who(d) %}{% if d.lender %}<span class="lender">{{ d.lender }}</span> {% endif %}{{ d.name }}{% endmacro %}
+<h1>Debt snowball</h1>
+{% if msg %}<div class="notice ok">{{ msg }}</div>{% endif %}
+
+{% if not p.active and not p.paid_off %}
+<div class="card empty">
+  <h2>No debts yet</h2>
+  <p>Credit cards and loans from <a href="/connections">Bank sync</a> show up here automatically.
+    Add anything else (car loan, student loan, medical bill) below.</p>
+</div>
+{% elif not p.active %}
+<div class="card hero-done">
+  <h2>🎉 Debt-free!</h2>
+  <p>Every debt in the plan is paid off. {{ p.paid_total|money }} paid down.</p>
+</div>
+{% else %}
+{% set t = p.target %}
+<div class="hero">
+  <section class="card target">
+    <span class="eyebrow">Now paying off</span>
+    <h2>{{ who(t) }}</h2>
+    <div class="big">{{ t.balance|money }} <span class="muted">left</span></div>
+    <div class="track big-track" title="{{ t.pct }}% paid"><div class="fill" style="width: {{ t.pct }}%"></div></div>
+    <p class="muted small">{{ t.pct }}% paid · {{ t.paid|money }} of {{ t.start|money }} since {{ t.start_date }}</p>
+    <ul class="facts">
+      <li>Pay <strong>{{ (t.min + p.extra)|money }}</strong> a month on this one
+        <span class="muted">({{ t.min|money }} minimum{{ ' (est.)' if t.min_estimated }} + {{ p.extra|money }} extra)</span>,
+        minimums on the rest.</li>
+      {% if t.payoff_date %}<li>Paid off by <strong>{{ t.payoff_date.strftime('%B %Y') }}</strong> at that pace.</li>{% endif %}
+      <li>Paid toward it so far this month: <strong>{{ t.paid_this_month|money }}</strong>
+        {% if t.last_payment %}<span class="muted">(last payment {{ t.last_payment.amount|money }} on {{ t.last_payment.date }})</span>
+        {% elif t.account_kind != 'credit' %}<span class="muted">(fill in "Payments say" below so payments are recognized)</span>{% endif %}</li>
+      {% if p.next %}<li class="muted">Up next: {{ who(p.next) }} ({{ p.next.balance|money }})</li>{% endif %}
+    </ul>
+  </section>
+
+  <section class="card overall">
+    <span class="eyebrow">All debts</span>
+    {% if p.debt_free %}
+      <h2>Debt-free by {{ p.debt_free.strftime('%B %Y') }}</h2>
+    {% else %}
+      <h2 class="status-critical">▲ The payments don't cover the interest</h2>
+    {% endif %}
+    <div class="big">{{ p.total|money }} <span class="muted">across {{ p.active|length }} debt{{ 's' if p.active|length != 1 }}</span></div>
+    <div class="track big-track" title="{{ p.pct }}% paid"><div class="fill" style="width: {{ p.pct }}%"></div></div>
+    <p class="muted small">{{ p.pct }}% paid · {{ p.paid_total|money }} of {{ p.start_total|money }}
+      {% if p.paid_off %}· {{ p.paid_off|length }} paid off{% endif %}</p>
+    <ul class="facts">
+      <li>Snowball payment: <strong>{{ p.snow.monthly|money }}</strong> a month in total</li>
+      {% if p.months_saved and p.months_saved > 0 %}
+        <li>{{ p.months_saved }} month{{ 's' if p.months_saved != 1 }} sooner{% if p.interest_saved and p.interest_saved > 0 %} and {{ p.interest_saved|money }} less interest{% endif %} than paying only minimums.</li>
+      {% elif p.extra == 0 %}
+        <li class="muted">Add an extra monthly amount below to speed this up.</li>
+      {% endif %}
+    </ul>
+  </section>
+</div>
+
+<section class="card chart-card">
+  <div class="card-head">
+    <h2>Path to debt-free</h2>
+    <div class="legend">
+      <span><i class="key-line" style="background: var(--series-1)"></i>Snowball plan</span>
+      <span><i class="key-line" style="background: var(--baseline)"></i>Minimums only</span>
+    </div>
+  </div>
+  <p class="muted small chart-sub">Total owed, month by month. Dots mark each debt being paid off.
+    {% if p.base.months %}Minimums only: debt-free {{ p.chart.labels[p.base.months] if p.base.months < p.chart.labels|length else 'after ' ~ (p.base.months // 12) ~ ' years' }}.
+    {% else %}Paying only minimums never clears it.{% endif %}</p>
+  <script type="application/json" id="path-data">{{ p.chart|tojson }}</script>
+  <div class="chart" data-chart="path" data-src="path-data" data-height="300"></div>
+  <details class="chart-table">
+    <summary>Show as a table</summary>
+    <div class="scroll-x"><table class="plain small">
+      <thead><tr><th>Month</th><th class="num">Snowball plan</th><th class="num">Minimums only</th><th>Paid off</th></tr></thead>
+      <tbody>
+      {% for label in p.chart.labels %}{% set i = loop.index0 %}
+        {% if i < p.chart.snow|length or i % 6 == 0 %}
+        <tr><td>{{ 'Now' if i == 0 else label }}</td>
+          <td class="num">{{ (p.chart.snow[i] if i < p.chart.snow|length else 0)|money }}</td>
+          <td class="num">{{ (p.chart.base[i] if i < p.chart.base|length else 0)|money }}</td>
+          <td class="small">{{ p.chart.events|selectattr('m', 'equalto', i)|map(attribute='name')|join(', ') }}</td></tr>
+        {% endif %}
+      {% endfor %}
+      </tbody>
+    </table></div>
+  </details>
+</section>
+
+{% set max_m = (p.timeline|map(attribute='m')|select|max) or 1 %}
+<section class="card">
+  <div class="card-head"><h2>Payoff timeline</h2><span class="muted small">in snowball order</span></div>
+  <ul class="timeline">
+    {% for row in p.timeline %}
+    <li class="{{ 'tl-target' if row.target }}{{ ' side' if row.side }}">
+      <span class="tl-name">{{ who(row) }}</span>
+      <span class="tl-track"><span class="tl-bar" style="width: {{ ((row.m or max_m) / max_m * 100)|round(1) }}%"></span></span>
+      <span class="tl-date">{{ row.date or 'never' }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+
+<section class="card">
+  {% include "_snowball_amount.html" %}
+  {% if p.unknown or p.estimated or p.no_apr %}
+  <p class="muted small">
+    {% if p.estimated %}Minimums marked "est." are guesses (1% of the balance + interest, at least $25): copy the real ones from your statements. {% endif %}
+    {% if p.no_apr %}Add each card's APR (on the statement) so payoff dates include interest.{% endif %}
+  </p>
+  {% endif %}
+</section>
+
+{% macro debt_row(d, label, target=false) %}
+      <tr class="{{ 'is-target' if target }}{{ ' side' if d.included == 2 }}" {{ bank_attrs(brands.get(d.account_id)) }}>
+        <td class="order">{{ label }}</td>
+        <td>
+          <div class="tx-desc">{{ bank_mark(brands.get(d.account_id)) }}{{ who(d) }} {% if target %}<span class="badge target-badge">Target</span>{% endif %}</div>
+          {% if d.info.status %}<div class="small {{ 'muted' if d.no_payment_due else '' }}">{{ d.info.status }}{% if d.info.due_date and d.info.due_date != 'No Due Date' %} · due {{ d.info.due_date }}{% endif %}{% if d.no_payment_due %} · no payment due now{% endif %}</div>{% endif %}
+          <div class="track thin"><div class="fill" style="width: {{ d.pct }}%"></div></div>
+          <div class="muted small">{{ d.pct }}% paid{% if d.synced %} · synced{% endif %}{% if d.last_payment %} · last paid {{ d.last_payment.amount|money }} {{ d.last_payment.date[5:] }}{% endif %}</div>
+          {% if (d.account_kind != 'credit' and not d.group_name) or d.payment_match %}
+          <label class="pm-label">Payments from checking say
+            <input name="pm_{{ d.id }}" value="{{ d.payment_match }}" placeholder="e.g. To Loan 12" aria-label="Text in payments to {{ d.name }}"></label>
+          {% endif %}
+        </td>
+        <td class="num" data-label="Balance">
+          {% if d.synced %}{{ d.balance|money }}
+          {% else %}<input class="money-input" name="bal_{{ d.id }}" inputmode="decimal" value="{{ '%.2f'|format(d.balance_cents / 100) if d.balance_cents is not none else '' }}" placeholder="0.00" aria-label="Balance of {{ d.name }}">{% endif %}
+        </td>
+        <td class="num" data-label="Min payment"><input class="money-input" name="min_{{ d.id }}" inputmode="decimal"
+            value="{{ '%.2f'|format(d.min_payment_cents / 100) if d.min_payment_cents else '' }}"
+            placeholder="{{ '0.00' if d.no_payment_due else '%.2f'|format(d.min / 100) ~ ' est.' }}" aria-label="Minimum payment for {{ d.name }}"></td>
+        <td class="num" data-label="APR %"><input class="money-input narrow" name="apr_{{ d.id }}" inputmode="decimal"
+            value="{{ d.apr if d.apr else '' }}" placeholder="0" aria-label="APR for {{ d.name }}"></td>
+        <td class="num hide-sm"><input class="money-input" name="start_{{ d.id }}" inputmode="decimal"
+            value="{{ '%.2f'|format(d.start / 100) }}" aria-label="Starting balance for {{ d.name }}"
+            title="What it was when you started the snowball; progress is measured from here"></td>
+        <td class="num" data-label="Paid off by">{{ d.payoff_date.strftime('%b %Y') if d.payoff_date else '—' }}</td>
+        <td class="row-actions">
+          {% if d.included == 1 %}
+          <button class="link small" formaction="/snowball/debts/{{ d.id }}/deprioritize"
+            title="Keep counting its balance, but take it off the priority list">Don't prioritize</button>
+          {% else %}
+          <button class="link small" formaction="/snowball/debts/{{ d.id }}/include">Prioritize</button>
+          {% endif %}
+          <button class="link small muted-link" formaction="/snowball/debts/{{ d.id }}/exclude"
+            title="Stop counting it at all (e.g. a card you pay in full every month)">Leave out</button>
+          {% if not d.account_id %}<button class="link small danger" formaction="/snowball/debts/{{ d.id }}/delete"
+            data-confirm="Delete {{ d.name }}? Use this when it's paid off or consolidated.">Delete</button>{% endif %}
+        </td>
+      </tr>
+{% endmacro %}
+<form method="post" action="/snowball/debts" class="card table-card">
+  <table class="snow-table">
+    <thead><tr><th>#</th><th>Debt</th><th class="num">Balance</th><th class="num">Min payment</th><th class="num">APR %</th>
+      <th class="num hide-sm">Started at</th><th class="num">Paid off by</th><th></th></tr></thead>
+    <tbody>
+    {% if not p.debts %}
+      <tr class="group-row"><td colspan="8" class="muted">Nothing on the priority list. Use "Prioritize" below to add a debt.</td></tr>
+    {% endif %}
+    {% for d in p.debts %}{{ debt_row(d, loop.index, loop.first) }}{% endfor %}
+    {% for d in p.unknown %}
+      <tr class="waiting">
+        <td class="order">…</td>
+        <td><div class="tx-desc">{{ who(d) }}</div><div class="muted small">Waiting for its balance from bank sync, or type it in</div></td>
+        <td class="num" data-label="Balance"><input class="money-input" name="bal_{{ d.id }}" inputmode="decimal" placeholder="0.00" aria-label="Balance of {{ d.name }}"></td>
+        <td class="num" data-label="Min payment"><input class="money-input" name="min_{{ d.id }}" inputmode="decimal" value="{{ '%.2f'|format(d.min_payment_cents / 100) if d.min_payment_cents else '' }}" placeholder="0.00" aria-label="Minimum payment for {{ d.name }}"></td>
+        <td class="num" data-label="APR %"><input class="money-input narrow" name="apr_{{ d.id }}" inputmode="decimal" value="{{ d.apr if d.apr else '' }}" placeholder="0" aria-label="APR for {{ d.name }}"></td>
+        <td class="hide-sm"></td><td class="num hide-sm">—</td><td class="hide-sm"></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+    {% if p.side %}
+    <tbody>
+      <tr class="group-row"><th colspan="8">Counted in total debt, not prioritized
+        <span class="muted small">· minimums only, paid after the list above</span></th></tr>
+      {% for d in p.side %}{{ debt_row(d, '–', not p.debts and loop.first) }}{% endfor %}
+    </tbody>
+    {% endif %}
+  </table>
+  <div class="actions sticky"><button class="primary">Save details</button>
+    <span class="muted small">Order is smallest balance first and updates itself as balances change.</span></div>
+</form>
+
+{% endif %}
+
+{% for g in p.groups %}
+<section class="card group-card">
+  <div class="card-head">
+    <h2>{{ g.name }} <span class="muted small">· {{ g.debts|length }} loan{{ 's' if g.debts|length != 1 }} · {{ g.balance|money }}</span></h2>
+    <form method="post" action="/snowball/groups/remove" data-confirm="Delete all {{ g.debts|length }} {{ g.name }} loans from the plan?">
+      <input type="hidden" name="group" value="{{ g.name }}"><button class="link danger small">Remove all</button>
+    </form>
+  </div>
+  <p class="muted small">To refresh balances, import a newer statement below; loans are matched by name. Loans missing from the new file are offered for removal.</p>
+  {% if g.debts|length > 1 %}
+  <details>
+    <summary class="link">Consolidated? Replace these {{ g.debts|length }} loans with one</summary>
+    <form method="post" action="/snowball/groups/consolidate" class="row-form" style="margin-top:12px">
+      <input type="hidden" name="group" value="{{ g.name }}">
+      <label class="grow">New loan name <input name="name" value="{{ g.name }} Consolidation"></label>
+      <label>Balance <input name="balance" inputmode="decimal" value="{{ '%.2f'|format(g.balance / 100) }}"></label>
+      <label>Rate % <input name="apr" inputmode="decimal" value="{{ g.rate }}" title="Federal consolidation: weighted average, rounded up to the next 1/8%"></label>
+      <label>Monthly payment <input name="min" inputmode="decimal" value="{{ '%.2f'|format(g.min / 100) if g.min else '' }}" placeholder="0.00"></label>
+      <button class="primary" data-confirm="Replace the {{ g.debts|length }} {{ g.name }} loans with one loan?">Replace</button>
+    </form>
+    <p class="muted small">The rate is filled in the way federal Direct Consolidation sets it (balance-weighted average,
+      rounded up to the next ⅛%); use the number on your new loan if it differs. Progress so far carries over.</p>
+  </details>
+  {% endif %}
+</section>
+{% endfor %}
+
+<details class="card add-tx">
+  <summary>Import loans from a statement (MOHELA, Nelnet, Aidvantage…)</summary>
+  <form method="post" action="/snowball/import" enctype="multipart/form-data" class="stack" style="margin-top:12px">
+    <label>Statement PDF <input type="file" name="file" accept=".pdf,.txt,.csv"></label>
+    <label>…or paste the loan list <textarea name="text" rows="4" class="paste-box" placeholder="1-01 Direct Loan - Unsubsidized $6,099.10 4.990%"></textarea></label>
+    <label>Group name <input name="group" placeholder="Detected from the file, e.g. MOHELA"></label>
+    <button class="primary">Read loans</button>
+  </form>
+  <p class="muted small">On MOHELA: open All Loan Details (expanding each loan is fine), then print or save the page as a PDF.</p>
+</details>
+
+{% if p.excluded %}
+<section class="card">
+  <h2>Left out of the plan</h2>
+  <p class="muted small">Not counted anywhere on this page. Bring one back whenever you like.</p>
+  {% for d in p.excluded %}
+  <form method="post" class="row-form compact">
+    <span class="grow">{{ who(d) }} <span class="muted small">{{ d.balance|money }} owed</span></span>
+    <button class="btn" formaction="/snowball/debts/{{ d.id }}/include">Add to snowball</button>
+    <button class="btn" formaction="/snowball/debts/{{ d.id }}/deprioritize">Count it, don't prioritize</button>
+    {% if not d.account_id %}<button class="link danger" formaction="/snowball/debts/{{ d.id }}/delete" data-confirm="Delete {{ d.name }}?">Delete</button>{% endif %}
+  </form>
+  {% endfor %}
+</section>
+{% endif %}
+
+{% if p.paid_off %}
+<section class="card">
+  <h2>Paid off ✓</h2>
+  <ul class="tx-list">
+    {% for d in p.paid_off %}
+    <li><div><div class="tx-desc"><span class="good">✓</span> {{ who(d) }}</div>
+      <div class="muted small">{{ d.start|money }} paid off{% if d.paid_off_on %} · {{ d.paid_off_on }}{% endif %}</div></div></li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+<details class="card add-tx" {% if not p.active and not p.paid_off %}open{% endif %}>
+  <summary>Add a debt by hand (car loan, student loan, medical bill…)</summary>
+  <form method="post" action="/snowball/debts/new" class="row-form">
+    <label>Company <input name="lender" placeholder="e.g. Ally"></label>
+    <label class="grow">Name <input name="name" placeholder="e.g. Car loan" required></label>
+    <label>Balance <input name="balance" inputmode="decimal" placeholder="0.00" required></label>
+    <label>Min payment <input name="min" inputmode="decimal" placeholder="0.00"></label>
+    <label>APR % <input name="apr" inputmode="decimal" placeholder="0"></label>
+    <button class="primary">Add debt</button>
+  </form>
+  <p class="muted small">Update its balance in the table above now and then. If the lender is on Plaid, connecting it
+    on <a href="/connections">Bank sync</a> keeps the balance current automatically.</p>
+</details>
+{% endblock %}

@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Import · Home Finance{% endblock %}
+{% block content %}
+<h1>Import transactions</h1>
+
+{% if result %}
+<div class="notice ok">
+  Imported <strong>{{ result.added }}</strong> new transaction{{ 's' if result.added != 1 }}{% if result.skipped %}, skipped {{ result.skipped }} already imported{% endif %}.
+  {% if result.added %}<a href="/transactions?month=all&batch={{ result.id }}">Review them →</a>{% endif %}
+</div>
+{% endif %}
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+
+{% if accounts %}
+<section class="card">
+  <form method="post" enctype="multipart/form-data" class="stack">
+    <label>Account
+      <select name="account_id" required>
+        {% for a in accounts %}<option value="{{ a.id }}">{{ a.name }} ({{ a.kind }}{{ ", bank-synced" if a.synced }})</option>{% endfor %}
+      </select>
+    </label>
+    <label>File from your bank
+      <input type="file" name="file" accept=".csv,.txt,.ofx,.qfx,.qbo" required>
+    </label>
+    <button class="primary">Upload</button>
+  </form>
+  <p class="muted small">CSV, OFX, QFX and QBO all work. On your bank's website look for "Download" or "Export" on the
+    activity page. QFX/OFX are best because they include IDs that prevent duplicates. Re-importing an overlapping date
+    range is safe: rows you already have are skipped. Accounts marked "bank-synced" update themselves on the
+    <a href="/connections">Bank sync</a> page, so importing files into them would create duplicates.</p>
+</section>
+{% else %}
+<div class="card empty"><p><a href="/accounts">Add an account</a> first, so we know where the transactions belong.</p></div>
+{% endif %}
+
+{% if history %}
+<section class="card">
+  <h2>Recent imports</h2>
+  <table class="plain">
+    <thead><tr><th>When</th><th>Account</th><th>File</th><th class="num">Added</th><th class="num">Skipped</th><th></th></tr></thead>
+    <tbody>
+    {% for i in history %}
+      <tr>
+        <td class="small">{{ i.created_at[:16] }}{% if i.username %} · {{ i.username }}{% endif %}</td>
+        <td>{{ i.account }}</td>
+        <td class="small">{{ i.filename }}</td>
+        <td class="num"><a href="/transactions?month=all&batch={{ i.id }}">{{ i.added }}</a></td>
+        <td class="num">{{ i.skipped }}</td>
+        <td>
+          {% if i.source != 'sync' %}
+          <form method="post" action="/import/{{ i.id }}/undo" data-confirm="Remove the {{ i.added }} transactions from this import?">
+            <button class="link danger">Undo</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}
+{% endblock %}

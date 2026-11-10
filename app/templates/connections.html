@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block title %}Bank sync · Home Finance{% endblock %}
+{% block content %}
+<h1>Bank sync</h1>
+{% if msg %}<div class="notice ok">{{ msg }}</div>{% endif %}
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+
+{% if not config %}
+<section class="card">
+  <h2>Set up Plaid</h2>
+  <p>Bank sync uses <a href="https://plaid.com" target="_blank" rel="noopener">Plaid</a>. You log into your bank in
+    Plaid's own window, so your bank password never touches this server. Plaid gives us read-only transactions and balances.</p>
+  <ol class="steps">
+    <li>Sign up at <a href="https://dashboard.plaid.com/signup" target="_blank" rel="noopener">dashboard.plaid.com</a>
+      and choose <strong>personal use</strong> when asked. The free Trial plan allows 10 bank logins.</li>
+    <li>In the Plaid dashboard open <strong>Developers → Keys</strong>.</li>
+    <li>Paste the <strong>client_id</strong> and the <strong>Production</strong> secret below.
+      (To try it with a fake bank first, use the Sandbox secret and pick Sandbox.)</li>
+  </ol>
+  {% include "_plaid_keys_form.html" %}
+</section>
+{% else %}
+
+<section class="card">
+  <div class="card-head">
+    <h2>Connected banks</h2>
+    {% if config.env == 'sandbox' %}<span class="badge">Sandbox (test data)</span>{% endif %}
+  </div>
+  <div class="actions" style="margin-top:0">
+    <button class="primary" id="connect-bank" type="button">Connect a bank</button>
+    {% if items %}<form method="post" action="/connections/sync" data-busy="Syncing…"><button class="btn">Sync all now</button></form>{% endif %}
+  </div>
+  <p class="muted small">Syncs automatically every 2 hours. Pending charges show up once they post.</p>
+  {% if local_mode %}<p class="muted small">Using the desktop app? Some banks (Chase, for one) won't sign in inside an app window.
+    If yours doesn't open or finish, choose <strong>Tools → Open in Web Browser</strong> and connect from there.</p>{% endif %}
+</section>
+
+{% for item in items %}
+<section class="card {{ 'highlight' if setup == item.id|string }}" id="item-{{ item.id }}">
+  <div class="card-head">
+    <h2 class="bank-title">{% if item.logo %}<img class="bank-logo big" src="/bank-logo/{{ item.id }}" alt="">{% endif %}{{ item.institution }}
+      {% if item.color %}<form method="post" action="/connections/{{ item.id }}/color" class="bank-color-form">
+        <input type="color" name="color" value="{{ item.color }}" aria-label="Color for {{ item.institution }}"
+          title="Color for {{ item.institution }} transactions" onchange="this.form.submit()"></form>{% endif %}</h2>
+    <span class="small {{ 'status-critical' if item.status in ('login_required', 'error') else 'muted' }}">
+      {% if item.status == 'new' %}Choose where each account goes, then save
+      {% elif item.status == 'login_required' %}▲ Needs you to log in again
+      {% elif item.status == 'error' %}▲ Last sync failed
+      {% elif item.last_sync %}Synced {{ item.last_sync.replace('T', ' ') }}
+      {% else %}Not synced yet{% endif %}
+    </span>
+  </div>
+  {% if item.env != config.env %}
+    <p class="error">Connected with {{ item.env }} keys, but {{ config.env }} keys are active now. Disconnect it and connect again.</p>
+  {% endif %}
+  {% if item.error %}<p class="error small">{{ item.error }}</p>{% endif %}
+
+  <form method="post" action="/connections/{{ item.id }}/accounts" data-busy="Syncing…">
+    <table class="plain">
+      <thead><tr><th>Bank account</th><th>Save transactions into</th><th class="num">Balance</th></tr></thead>
+      <tbody>
+      {% for p in item.accounts %}
+        <tr>
+          <td>{{ p.name }}{% if p.mask %} <span class="muted">••{{ p.mask }}</span>{% endif %}
+            <div class="muted small">{{ p.subtype or p.type }}</div></td>
+          <td>
+            <select name="acct_{{ p.id }}" aria-label="Where {{ p.name }} goes">
+              {% set default_new = item.status == 'new' and p.type in ('depository', 'credit', 'loan') %}
+              <option value="">Don't sync</option>
+              <option value="new" {% if default_new %}selected{% endif %}>New account: {{ p.name }}</option>
+              {% for a in accounts %}<option value="{{ a.id }}" {% if p.account_id == a.id %}selected{% endif %}>{{ a.name }}</option>{% endfor %}
+            </select>
+          </td>
+          <td class="num">{{ p.balance_cents|money if p.balance_cents is not none else '—' }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <div class="actions">
+      <button class="primary">{{ 'Save & sync' if item.status == 'new' else 'Save' }}</button>
+    </div>
+  </form>
+  {% if item.status != 'new' %}
+  <div class="actions">
+    {% if item.status == 'login_required' %}
+      <button class="primary" type="button" data-reconnect="{{ item.id }}">Log in again</button>
+    {% else %}
+      <form method="post" action="/connections/{{ item.id }}/sync" data-busy="Syncing…"><button class="btn">Sync now</button></form>
+      <button class="link" type="button" data-reconnect="{{ item.id }}">Update login</button>
+    {% endif %}
+    <form method="post" action="/connections/{{ item.id }}/delete"
+      data-confirm="Disconnect {{ item.institution }}? Transactions already synced stay."><button class="link danger">Disconnect</button></form>
+  </div>
+  {% endif %}
+</section>
+{% endfor %}
+
+<details class="card add-tx">
+  <summary>Plaid keys ({{ config.env }})</summary>
+  <p class="muted small">Client ID {{ config.client_id[:6] }}…. Leave a box empty to keep its current value.
+    Switching between Sandbox and Production means reconnecting your banks.</p>
+  {% include "_plaid_keys_form.html" %}
+</details>
+
+<div id="toast" role="status" aria-live="polite"></div>
+<script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
+<script>
+  async function openLink(itemId) {
+    const res = await fetch("/api/plaid/link-token", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(itemId ? {item: itemId} : {}),
+    });
+    const data = await res.json();
+    if (!res.ok) { alert(data.error || "Couldn't start Plaid."); return; }
+    Plaid.create({
+      token: data.link_token,
+      onSuccess: async (publicToken, metadata) => {
+        const url = itemId ? `/api/plaid/reconnected/${itemId}` : "/api/plaid/exchange";
+        const done = await fetch(url, {
+          method: "POST", headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({public_token: publicToken, institution: metadata.institution}),
+        });
+        const result = await done.json();
+        if (!done.ok) { alert(result.error || "Couldn't finish connecting."); return; }
+        location.href = result.redirect;
+      },
+    }).open();
+  }
+  document.getElementById("connect-bank").addEventListener("click", () => openLink(null));
+  document.querySelectorAll("[data-reconnect]").forEach((b) =>
+    b.addEventListener("click", () => openLink(b.dataset.reconnect)));
+</script>
+{% endif %}
+{% endblock %}

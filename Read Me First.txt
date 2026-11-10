@@ -1,0 +1,78 @@
+HOME FINANCE - SETUP
+====================
+
+Home Finance is a household budget app that runs on your own computer. Your
+data stays on that computer. Nothing is sent anywhere unless you turn on bank
+syncing (Plaid) or the AI features (Anthropic), and both use keys you add
+yourself. Phones and other computers on your Wi-Fi can use it too, while the
+app is open.
+
+
+1. INSTALL
+----------
+  Mac:      Open the .dmg file and drag Home Finance into Applications.
+            The first time you open it, macOS may say it "cannot be opened"
+            or is "from an unidentified developer". Click Done, then go to
+            System Settings > Privacy & Security, scroll down, and click
+            "Open Anyway". You only do this once.
+
+  Windows:  Right-click the zip, choose "Extract All", and keep the
+            "Home Finance" folder somewhere such as Documents. Open it and
+            double-click "Home Finance.exe". To pin it, right-click the exe
+            and choose "Pin to Start" or "Send to > Desktop (create
+            shortcut)".
+            If a blue "Windows protected your PC" box appears, click
+            "More info", then "Run anyway".
+            When Windows asks about the firewall, allow "Private networks".
+            That lets your phone connect.
+
+
+2. MAKE YOUR LOGIN
+------------------
+The first time it opens, Home Finance asks you to create a username and
+password. You can add logins for others in your household later, under
+Settings.
+
+Then add your accounts and import bank exports (CSV, OFX or QFX) from the
+Import page.
+
+
+3. USE IT ON YOUR PHONE
+-----------------------
+Open Settings > Phone access (or choose Tools > Phone Access in the menu).
+Scan the QR code with your phone's camera, or type the address shown, which
+looks like http://192.168.1.20:8090. Sign in with the same login.
+
+On an iPhone, tap Share, then "Add to Home Screen" to get an app icon.
+
+Your phone must be on the same Wi-Fi, and Home Finance has to be open on the
+computer. Minimizing the window is fine; quitting stops phone access too. If
+you only want to use it on this computer, click "Turn off phone access" on
+the same page.
+
+
+4. OPTIONAL EXTRAS
+------------------
+  Automatic bank sync   Uses your own Plaid account (the free Trial plan
+                        covers up to 10 banks). Paste the keys on the
+                        Bank sync page.
+  AI features           Uses your own Anthropic (Claude) API key. Paste it
+                        in Settings.
+
+Step-by-step guides for both are at:
+  https://github.com/JPMixing-inc/home-finance-app#bank-sync-with-plaid
+
+
+5. WHERE YOUR DATA LIVES
+------------------------
+Choose Tools > Show Data Folder in the app, or go to:
+  Mac:      ~/Library/Application Support/Home Finance
+  Windows:  %APPDATA%\Home Finance
+
+finance.db holds everything. To back it up, use Settings > "Download a
+backup", or copy that folder while the app is closed.
+
+To move to a new computer, install Home Finance there, open it once, quit
+it, and copy your old data folder over the new one.
+
+Updating the app never touches your data folder.

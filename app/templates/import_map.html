@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Match columns · Home Finance{% endblock %}
+{% macro column_select(field, label, optional=false) %}
+  <label>{{ label }}
+    <select name="{{ field }}">
+      <option value="">{{ '— none —' if optional else '— choose —' }}</option>
+      {% for h in header %}<option value="{{ loop.index0 }}" {% if mapping[field] == loop.index0 %}selected{% endif %}>{{ h or 'Column ' ~ loop.index }}</option>{% endfor %}
+    </select>
+  </label>
+{% endmacro %}
+{% block content %}
+<h1>Match the columns</h1>
+<p class="muted">Importing <strong>{{ filename }}</strong> into <strong>{{ acct.name }}</strong>. Check the preview, then import.
+  We'll remember these choices for this account.</p>
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+
+<section class="card">
+  <h2>Your file</h2>
+  <div class="scroll-x">
+  <table class="plain small">
+    <thead><tr>{% for h in header %}<th>{{ h or 'Column ' ~ loop.index }}</th>{% endfor %}</tr></thead>
+    <tbody>{% for r in sample %}<tr>{% for c in r %}<td>{{ c }}</td>{% endfor %}</tr>{% endfor %}</tbody>
+  </table>
+  </div>
+</section>
+
+<form method="post" action="/import/map" class="card">
+  <input type="hidden" name="token" value="{{ token }}">
+  <input type="hidden" name="account_id" value="{{ acct.id }}">
+  <input type="hidden" name="filename" value="{{ filename }}">
+  <div class="row-form">
+    {{ column_select("date", "Date") }}
+    {{ column_select("description", "Description") }}
+    {{ column_select("amount", "Amount (one column)", true) }}
+    {{ column_select("debit", "…or Money out column", true) }}
+    {{ column_select("credit", "…and Money in column", true) }}
+  </div>
+  <label class="check"><input type="checkbox" name="flip" value="1" {% if mapping.flip %}checked{% endif %}>
+    Flip the sign (use this if purchases show up as positive below)</label>
+
+  <h2>Preview</h2>
+  {% if preview %}
+    <p class="muted">{{ count }} transaction{{ 's' if count != 1 }} ready: {{ (-spent)|money }} out, {{ received|money }} in.
+      {% if bad %}{{ bad }} row{{ 's' if bad != 1 }} couldn't be read and will be skipped.{% endif %}</p>
+    <div class="scroll-x">
+    <table class="plain">
+      <thead><tr><th>Date</th><th>Description</th><th class="num">Amount</th></tr></thead>
+      <tbody>
+      {% for t in preview %}
+        <tr><td class="date">{{ t.date }}</td><td>{{ t.description }}</td>
+          <td class="num amount {{ 'pos' if t.amount_cents > 0 }}">{{ t.amount_cents|money(true) }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% if count > preview|length %}<p class="muted small">…and {{ count - preview|length }} more.</p>{% endif %}
+  {% else %}
+    <p class="error">Nothing readable yet. Pick the date, description and amount columns.</p>
+  {% endif %}
+
+  <div class="actions">
+    <button class="btn" name="action" value="preview">Update preview</button>
+    <button class="primary" name="action" value="import" {% if not ready %}disabled{% endif %}>Import {{ count }} transactions</button>
+    <a class="link" href="/import">Cancel</a>
+  </div>
+</form>
+{% endblock %}

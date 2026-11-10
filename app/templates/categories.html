@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Categories · Home Finance{% endblock %}
+{% block content %}
+<h1>Categories & rules</h1>
+{% if applied %}<div class="notice ok">Rules categorized {{ applied }} transaction{{ 's' if applied != '1' }}.</div>{% endif %}
+
+<datalist id="group-names">{% for g in group_names %}<option value="{{ g }}">{% endfor %}</datalist>
+
+<section class="card">
+  <div class="card-head">
+    <h2>Auto-categorize rules</h2>
+    <form method="post" action="/rules/apply"><button class="btn">Run rules on uncategorized</button></form>
+  </div>
+  <p class="muted small">When a description contains the text, the transaction gets that category. Longer matches win.
+    Tip: when you categorize something on the Transactions page, you'll be offered a rule for similar ones.</p>
+  <form method="post" action="/rules" class="row-form">
+    <label class="grow">Description contains <input name="pattern" placeholder="e.g. KROGER" required></label>
+    <label>Category
+      <select name="category_id">
+        {% for group, items in groups %}<optgroup label="{{ group }}">{% for c in items %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</optgroup>{% endfor %}
+      </select>
+    </label>
+    <button class="primary">Add rule</button>
+  </form>
+  {% if rules %}
+  <table class="plain">
+    <tbody>
+    {% for r in rules %}
+      <tr><td><code>{{ r.pattern }}</code></td><td>→ {{ r.category }}</td>
+        <td class="num"><form method="post" action="/rules/{{ r.id }}/delete"><button class="link danger">Remove</button></form></td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>Categories</h2>
+  <p class="muted small"><strong>Expense</strong> categories count toward spending and budgets, <strong>income</strong> toward income,
+    and <strong>transfer</strong> categories (card payments, moving money between accounts) are left out of both.</p>
+  <form method="post" action="/categories" class="row-form">
+    <label class="grow">New category <input name="name" required></label>
+    <label>Group <input name="group_name" list="group-names" placeholder="Other"></label>
+    <label>Type <select name="kind"><option>expense</option><option>income</option><option>transfer</option></select></label>
+    <button class="primary">Add</button>
+  </form>
+
+  {% for group, items in groups %}
+  <h3>{{ group }}</h3>
+  {% for c in items %}
+  <form method="post" action="/categories/{{ c.id }}" class="row-form compact">
+    <input name="name" value="{{ c.name }}" aria-label="Name" class="grow">
+    <input name="group_name" value="{{ c.group_name }}" list="group-names" aria-label="Group">
+    <select name="kind" aria-label="Type">
+      {% for k in ['expense', 'income', 'transfer'] %}<option {% if c.kind == k %}selected{% endif %}>{{ k }}</option>{% endfor %}
+    </select>
+    <span class="muted small count">{{ c.n }} txn</span>
+    <button class="btn" name="action" value="save">Save</button>
+    <button class="link danger" name="action" value="delete"
+      data-confirm="Delete {{ c.name }}? Its {{ c.n }} transactions become uncategorized.">Delete</button>
+  </form>
+  {% endfor %}
+  {% endfor %}
+</section>
+{% endblock %}

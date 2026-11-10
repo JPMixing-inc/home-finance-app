@@ -1,0 +1,13 @@
+data/
+__pycache__/
+*.pyc
+.venv/
+.build-venv/
+build/
+dist/
+*.zip
+.DS_Store
+
+# Personal NAS deployment (has the NAS address); kept on this computer only
+deploy.sh
+NAS-NOTES.md

@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Settings · Home Finance{% endblock %}
+{% block content %}
+<h1>Settings</h1>
+{% if msg %}<div class="notice">{{ msg }}</div>{% endif %}
+
+{% if phone %}
+<section class="card" id="phone">
+  <h2>Phone access</h2>
+  {% if phone.on %}
+    {% if phone.url %}
+      <div style="display:flex;gap:20px;align-items:center;flex-wrap:wrap">
+        {% if phone.qr %}<div style="background:#fff;border-radius:10px;padding:6px;line-height:0">{{ phone.qr }}</div>{% endif %}
+        <div>
+          <p>On a phone or another computer on the same Wi-Fi, scan the code or open:</p>
+          <p><strong style="font-size:1.25em;user-select:all">{{ phone.url }}</strong></p>
+          <p class="muted small">Sign in with the same login. It works while Home Finance is open on this computer.
+            On a phone, use Share, then "Add to Home Screen", to get an app icon.</p>
+        </div>
+      </div>
+    {% else %}
+      <p class="muted">This computer isn't connected to a network right now, so other devices can't reach it.</p>
+    {% endif %}
+    <form method="post" action="/settings/phone"><input type="hidden" name="on" value="0">
+      <button class="link danger">Turn off phone access</button></form>
+  {% else %}
+    <p class="muted">Off. Only this computer can open Home Finance.</p>
+    <form method="post" action="/settings/phone"><input type="hidden" name="on" value="1">
+      <button class="primary">Turn on phone access</button></form>
+  {% endif %}
+</section>
+{% endif %}
+
+<div class="columns">
+  <section class="card">
+    <h2>Logins</h2>
+    <table class="plain">
+      <tbody>
+      {% for u in users %}
+        <tr><td>{{ u.username }}{% if u.username == me %} <span class="muted">(you)</span>{% endif %}</td>
+          <td class="muted small">since {{ u.created_at[:10] }}</td>
+          <td class="num">{% if u.username != me %}
+            <form method="post" action="/settings/users/{{ u.id }}/delete" data-confirm="Remove {{ u.username }}'s login?"><button class="link danger">Remove</button></form>
+          {% endif %}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <h3>Add a login</h3>
+    <form method="post" action="/settings/users" class="stack">
+      <label>Username <input name="username" autocomplete="off" required></label>
+      <label>Password <input name="password" type="password" autocomplete="new-password" minlength="8" required></label>
+      <button class="primary">Add login</button>
+    </form>
+  </section>
+
+  <section class="card">
+    <h2>Change your password</h2>
+    <form method="post" action="/settings/password" class="stack">
+      <label>Current password <input name="current" type="password" autocomplete="current-password" required></label>
+      <label>New password <input name="new" type="password" autocomplete="new-password" minlength="8" required></label>
+      <button class="primary">Change password</button>
+    </form>
+    <h2>Debt snowball</h2>
+    {% with next = 'settings' %}{% include "_snowball_amount.html" %}{% endwith %}
+    <h2 id="claude">Claude</h2>
+    {% if ai_ready %}
+      <p class="small">Claude is set up. Spent this month: <strong>${{ '%.2f'|format(ai_month / 100) }}</strong>
+        <span class="muted">(${{ '%.2f'|format(ai_total / 100) }} all time, estimated)</span></p>
+      <form method="post" action="/settings/anthropic" class="row-form">
+        <label class="grow">Replace API key <input name="api_key" type="password" autocomplete="off" placeholder="sk-ant-…"></label>
+        <button class="btn" name="action" value="save">Save</button>
+        <button class="link danger" name="action" value="remove" data-confirm="Remove the Claude API key? Ask Claude, summaries and suggestions stop working.">Remove</button>
+      </form>
+    {% else %}
+      <p class="muted small">Powers Ask Claude, category suggestions and monthly summaries. Create a key at
+        <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>
+        (pay-as-you-go, separate from a Claude subscription) and paste it here. It's stored only on this server.</p>
+      <form method="post" action="/settings/anthropic" class="stack">
+        <label>Anthropic API key <input name="api_key" type="password" autocomplete="off" placeholder="sk-ant-…" required></label>
+        <button class="primary" name="action" value="save">Save key</button>
+      </form>
+    {% endif %}
+    <h2>Your data</h2>
+    <p class="muted small">Everything lives in one database file{% if phone %} on this computer{% else %} on the server{% endif %}.</p>
+    <p><a class="btn" href="/backup">Download a backup</a> <a class="btn" href="/export.csv">Export transactions (CSV)</a></p>
+  </section>
+</div>
+{% endblock %}

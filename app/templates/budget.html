@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Budget · Home Finance{% endblock %}
+{% block content %}
+{% include "_month_nav.html" %}
+
+{% if saved %}<div class="notice ok">Budget saved.</div>{% endif %}
+
+<section class="tiles">
+  <div class="tile"><span class="label">Budgeted</span><span class="value">{{ s.budgeted|money }}</span></div>
+  <div class="tile"><span class="label">Spent</span><span class="value">{{ s.spent|money }}</span></div>
+  <div class="tile"><span class="label">Left</span><span class="value {{ 'neg' if s.left < 0 }}">{{ s.left|money }}</span></div>
+  <div class="tile"><span class="label">Income</span><span class="value">{{ s.income|money }}</span>
+    {% if s.income %}<span class="sub">{{ (s.income - s.budgeted)|money(true) }} after budget</span>{% endif %}</div>
+</section>
+
+{% if not s.budgeted and has_prev %}
+<form method="post" action="/budget/copy" class="notice">
+  <input type="hidden" name="month" value="{{ month }}">
+  No budget for {{ month|month_label }} yet. <button class="link">Copy last month's budget →</button>
+</form>
+{% endif %}
+
+<form method="post" action="/budget" class="card table-card">
+  <input type="hidden" name="month" value="{{ month }}">
+  <table class="budget-table">
+    <thead>
+      <tr><th>Category</th><th class="num">Budget</th><th class="num">Spent</th><th class="num">Left</th>
+        <th class="num hide-sm" title="Average spent per month over the previous 3 months">3-mo avg</th></tr>
+    </thead>
+    {% for group, items in groups %}
+    <tbody>
+      <tr class="group-row"><th colspan="5">{{ group }}</th></tr>
+      {% for c in items %}
+      <tr>
+        <td><a href="/transactions?month={{ month }}&category={{ c.id }}">{{ c.name }}</a>
+          {% if c.budget %}<div class="track thin"><div class="fill {{ 'over' if c.remaining < 0 }}" style="width: {{ c.pct }}%"></div></div>{% endif %}
+        </td>
+        <td class="num"><input class="money-input{{ ' carried' if c.carried_from }}" name="b_{{ c.id }}" inputmode="decimal"
+             value="{{ '%.2f'|format(c.budget / 100) if (c.budget or c.set_here) else '' }}" placeholder="0.00" aria-label="Budget for {{ c.name }}"
+             {% if c.carried_from %}title="Carried over from {{ c.carried_from|month_label }}"{% endif %}></td>
+        <td class="num">{{ c.spent|money }}</td>
+        <td class="num {{ 'status-critical' if c.budget and c.remaining < 0 }}">{% if c.budget %}{{ c.remaining|money }}{% else %}<span class="muted">—</span>{% endif %}</td>
+        <td class="num muted hide-sm">{{ c.avg|money if c.avg > 0 else '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    {% endfor %}
+  </table>
+  <div class="actions sticky"><button class="primary">Save budget</button></div>
+</form>
+{% endblock %}

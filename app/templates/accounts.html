@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Accounts · Home Finance{% endblock %}
+{% block content %}
+<h1>Accounts</h1>
+{% if welcome %}
+<div class="notice ok">You're set up. Add each checking account, savings account and credit card you want to track,
+  then head to <a href="/import">Import</a>.</div>
+{% endif %}
+
+<section class="card">
+  <form method="post" action="/accounts" class="row-form">
+    <label class="grow">Name <input name="name" placeholder="e.g. Joint Checking" required></label>
+    <label>Type <select name="kind">{% for k in kinds %}<option>{{ k }}</option>{% endfor %}</select></label>
+    <button class="primary">Add account</button>
+  </form>
+</section>
+
+{% if accounts %}
+<section class="card">
+  {% for a in accounts %}
+  {% set b = brands.get(a.id) %}
+  <form method="post" action="/accounts/{{ a.id }}" class="row-form compact account-row" {{ bank_attrs(b) }}>
+    <span class="acct-mark">{{ bank_mark(b) }}</span>
+    <input name="name" value="{{ a.name }}" aria-label="Name" class="grow">
+    <label class="color-pick" title="Color for this account's transactions{{ ' (from ' ~ b.bank ~ ')' if b and b.bank and not b.own }}">
+      <input type="color" name="color" value="{{ b.color if b else '#7a7a85' }}" aria-label="Color for {{ a.name }}">
+      <input type="hidden" name="color_was" value="{{ b.color if b else '#7a7a85' }}">
+      <input type="hidden" name="bank_color" value="{{ b.bank_color if b else '' }}">
+    </label>
+    {% if b and b.own %}<button class="link small reset-color" name="action" value="reset_color" title="Use the bank's color again">Reset color</button>{% endif %}
+    <select name="kind" aria-label="Type" class="acct-kind">{% for k in kinds %}<option {% if a.kind == k %}selected{% endif %}>{{ k }}</option>{% endfor %}</select>
+    <span class="balance">{% if a.balance_cents is not none %}{{ a.balance_cents|money }}{% endif %}</span>
+    <span class="muted small count">
+      {% if a.synced %}<a href="/connections">Bank-synced</a> · {% endif %}
+      {% if a.n %}<a href="/transactions?month=all&account={{ a.id }}">{{ a.n }} transactions</a>, {{ a.first }} to {{ a.last }}{% else %}No transactions yet{% endif %}
+    </span>
+    <button class="btn acct-save" name="action" value="save">Save</button>
+    <button class="link danger acct-delete" name="action" value="delete"
+      data-confirm="Delete {{ a.name }} and all {{ a.n }} of its transactions?">Delete</button>
+  </form>
+  {% endfor %}
+</section>
+{% endif %}
+{% endblock %}

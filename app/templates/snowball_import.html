@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Import loans · Home Finance{% endblock %}
+{% block content %}
+<h1>Import loans</h1>
+<p class="muted">Found {{ loans|length }} loan{{ 's' if loans|length != 1 }} totaling {{ total|money }}{% if as_of %}, as of {{ as_of }}{% endif %}.
+  Check them, then import. Nothing changes until you click Import.</p>
+
+<form method="post" action="/snowball/import/apply">
+  <section class="card">
+    <div class="row-form">
+      <label class="grow">Group name <input name="group" value="{{ group }}" required></label>
+      <label>Total monthly payment for these <input name="monthly" inputmode="decimal" placeholder="optional"></label>
+    </div>
+    <p class="muted small">The group keeps these loans together so you can refresh them from a newer statement,
+      or replace them all when they're consolidated. If you enter the monthly payment, it's split across the
+      loans by balance. Leave it blank while they're in grace or forbearance (no payment due).</p>
+  </section>
+
+  <div class="card table-card">
+  <table class="tx-table">
+    <thead><tr><th></th><th>Loan</th><th>Status</th><th class="num">Balance</th><th class="num">Rate</th><th>Change</th></tr></thead>
+    <tbody>
+    {% for l in loans %}
+      <tr>
+        <td><input type="checkbox" name="use_{{ loop.index0 }}" value="1" checked aria-label="Import {{ l.name }}"></td>
+        <td><div class="tx-desc">{{ l.name }}</div>{% if l.info.school %}<div class="muted small">{{ l.info.school }}</div>{% endif %}
+          <input type="hidden" name="name_{{ loop.index0 }}" value="{{ l.name }}">
+          <input type="hidden" name="bal_{{ loop.index0 }}" value="{{ l.balance }}">
+          <input type="hidden" name="apr_{{ loop.index0 }}" value="{{ l.apr }}">
+          <input type="hidden" name="info_{{ loop.index0 }}" value="{{ l.info|tojson|forceescape }}"></td>
+        <td class="small">{{ l.info.status or '—' }}{% if l.info.due_date and l.info.due_date != 'No Due Date' %}<div class="muted">due {{ l.info.due_date }}</div>{% endif %}</td>
+        <td class="num">{{ l.balance|money }}</td>
+        <td class="num">{{ '%.3f'|format(l.apr) }}%</td>
+        <td class="small">
+          {% if l.existing %}Update{% if l.existing.balance != l.balance %} <span class="muted">(was {{ l.existing.balance|money }})</span>{% else %} <span class="muted">(no change)</span>{% endif %}
+          {% else %}<strong>New</strong>{% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <input type="hidden" name="count" value="{{ loans|length }}">
+
+  {% if missing %}
+  <section class="card">
+    <h2>In the "{{ group }}" group but not in this file</h2>
+    <p class="muted small">Usually that means paid off or consolidated into a new loan. Ticked ones are removed.</p>
+    {% for d in missing %}
+      <label class="check"><input type="checkbox" name="remove_{{ d.id }}" value="1" checked>
+        {{ d.name }} <span class="muted small">{{ d.balance|money }}</span></label>
+    {% endfor %}
+  </section>
+  {% endif %}
+
+  <div class="actions"><button class="primary">Import</button><a class="link" href="/snowball">Cancel</a></div>
+</form>
+{% endblock %}

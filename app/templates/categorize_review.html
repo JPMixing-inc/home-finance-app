@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Review categories · Home Finance{% endblock %}
+{% block content %}
+<h1>Claude's category suggestions</h1>
+{% if error %}
+  <p class="error">{{ error }}</p>
+  <p><a href="{{ back_to }}">← Back to transactions</a></p>
+{% else %}
+<p class="muted">Untick anything you don't want, or change the category. Nothing changes until you click Apply.
+  This cost about {{ '%.1f'|format(cost) }}¢.</p>
+
+<form method="post" action="/ai/categorize/apply">
+  <input type="hidden" name="back" value="{{ back_to }}">
+
+  {% if rules %}
+  <section class="card">
+    <h2>Rules for future transactions</h2>
+    <p class="muted small">These also categorize matching transactions from now on.</p>
+    {% for r in rules %}
+      <label class="check"><input type="checkbox" name="rule" value="{{ r.pattern }}|{{ r.category_id }}" {% if r.n > 1 %}checked{% endif %}>
+        Description contains <code>{{ r.pattern }}</code> → {{ r.category }}
+        <span class="muted small">({{ r.n }} here)</span></label>
+    {% endfor %}
+  </section>
+  {% endif %}
+
+  <div class="card table-card">
+  <table class="tx-table review-table">
+    <thead><tr><th></th><th>Date</th><th>Description</th><th>Category</th><th class="num">Amount</th></tr></thead>
+    <tbody>
+    {% for i in items %}
+      <tr class="{{ 'uncat' if not i.category_id }}">
+        <td><input type="checkbox" name="use_{{ i.id }}" value="1" {% if i.category_id %}checked{% endif %} aria-label="Use this suggestion"></td>
+        <td class="date">{{ i.tx.date }}</td>
+        <td><div class="tx-desc">{{ i.tx.description }}</div><div class="muted small">{{ i.tx.account }}</div></td>
+        <td>
+          <select name="cat_{{ i.id }}" aria-label="Category" data-use="use_{{ i.id }}">
+            <option value="">Not sure</option>
+            {% for group, cs in cats %}
+              <optgroup label="{{ group }}">
+              {% for c in cs %}<option value="{{ c.id }}" {% if i.category_id == c.id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
+              </optgroup>
+            {% endfor %}
+          </select>
+        </td>
+        <td class="num amount {{ 'pos' if i.tx.amount_cents > 0 }}">{{ i.tx.amount_cents|money(true) }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <div class="actions sticky">
+    <button class="primary">Apply</button>
+    <a class="link" href="{{ back_to }}">Cancel</a>
+  </div>
+  </div>
+</form>
+<script>
+  // Picking a category ticks the row; picking "Not sure" unticks it.
+  document.querySelectorAll("select[data-use]").forEach((s) => s.addEventListener("change", () => {
+    document.querySelector(`[name="${s.dataset.use}"]`).checked = !!s.value;
+  }));
+</script>
+{% endif %}
+{% endblock %}

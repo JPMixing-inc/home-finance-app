@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Daily · Home Finance{% endblock %}
+{% block content %}
+{% include "_month_nav.html" %}
+
+<section class="card daily-total">
+  <div class="daily-total-head">
+    <div>
+      <span class="eyebrow">Left to spend this month</span>
+      {% if total.budget %}
+      <div class="daily-left {{ 'neg' if total.left < 0 }}">
+        {% if total.left >= 0 %}{{ total.left|money }} <span class="muted">left</span>
+        {% else %}Over by {{ (-total.left)|money }}{% endif %}
+      </div>
+      <span class="muted small">{{ total.spent|money }} spent of {{ total.budget|money }} budgeted</span>
+      {% else %}
+      <div class="daily-left muted">No budgets yet</div>
+      <span class="muted small">This page shows the amounts set on the <a href="/budget">Budget page</a>.</span>
+      {% endif %}
+    </div>
+    {% if current and total.per_day %}
+    <div class="per-day">
+      <span class="eyebrow">You can spend</span>
+      <strong>{{ total.per_day|money }}/day</strong>
+      <span class="muted small">until the end of the month</span>
+    </div>
+    {% endif %}
+  </div>
+  <div class="bar-pair">
+    <div class="bar-row">
+      <span class="bar-label">Month</span>
+      <div class="meter time" role="img" aria-label="{{ month_pct|round|int }}% of the month gone"><div style="width: {{ month_pct }}%"></div></div>
+      <span class="bar-value">{% if current %}Day {{ day }} of {{ days_in_month }} · <strong>{{ days_left }}</strong> day{{ 's' if days_left != 1 }} left
+        {% elif past %}Month finished{% else %}Not started{% endif %}</span>
+    </div>
+    {% if total.budget %}
+    <div class="bar-row">
+      <span class="bar-label">Spent</span>
+      <div class="meter spent {{ total.state }}" role="img" aria-label="{{ total.used_pct }}% of the budget spent"><div style="width: {{ total.used_pct }}%"></div></div>
+      <span class="bar-value"><strong>{{ total.used_pct }}%</strong> of the budget</span>
+    </div>
+    {% endif %}
+  </div>
+</section>
+
+{% for group, items in groups %}
+<h3 class="tile-group">{{ group }}</h3>
+<div class="cat-tiles">
+  {% for c in items %}
+  <a class="card cat-tile {{ c.state }}" href="/transactions?month={{ month }}&category={{ c.id }}">
+    <div class="cat-tile-head">
+      <span class="cat-name">{{ c.name }}</span>
+      {% if c.state == 'over' %}<span class="cat-flag status-critical">▲ Over budget</span>
+      {% elif c.state == 'fast' and current %}<span class="cat-flag fast-note">Spending fast</span>{% endif %}
+    </div>
+    <div class="cat-left {{ 'neg' if c.state == 'over' }}">
+      {% if c.state == 'over' %}Over by {{ (-c.left)|money }}{% else %}{{ c.left|money }} <span class="muted">left</span>{% endif %}
+    </div>
+    <div class="meter spent {{ c.state }}" role="img" aria-label="{{ c.name }}: {{ c.spent|money }} spent of {{ c.budget|money }}">
+      <div style="width: {{ c.used_pct }}%"></div></div>
+    <div class="cat-foot">
+      <span>{{ c.spent|money }} spent of {{ c.budget|money }}</span>
+      {% if current and c.per_day and c.group_name not in ('Housing', 'Financial')
+         and c.name not in ('Subscriptions', 'Car Payment', 'Education') %}<span>{{ c.per_day|money }}/day</span>{% endif %}
+    </div>
+  </a>
+  {% endfor %}
+</div>
+{% endfor %}
+
+{% if unbudgeted or uncat.spent %}
+<section class="card">
+  <h2>Spending without a budget</h2>
+  <ul class="qlist plain-list">
+    {% for c in unbudgeted %}
+    <li class="qrow nobudget"><a class="qname" href="/transactions?month={{ month }}&category={{ c.id }}">{{ c.name }}</a>
+      <span class="qvalue"><strong>{{ c.spent|money }}</strong> <span class="muted">spent</span></span></li>
+    {% endfor %}
+    {% if uncat.spent %}
+    <li class="qrow nobudget"><a class="qname" href="/transactions?month={{ month }}&category=none">Uncategorized</a>
+      <span class="qvalue"><strong>{{ uncat.spent|money }}</strong> <span class="muted">spent</span></span></li>
+    {% endif %}
+  </ul>
+</section>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,64 @@
+# Builds the desktop apps. Run it from the Actions tab ("Run workflow") to get test builds under the
+# run's "Artifacts", or push a tag like v1.0.1 to also publish a GitHub Release using RELEASE_NOTES.md.
+name: Build desktop apps
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+jobs:
+  mac:
+    runs-on: macos-latest  # Apple silicon
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: ./build-mac.sh
+      - name: Smoke test (the app's server answers)
+        run: |
+          FINANCE_DATA="$RUNNER_TEMP/data" "dist/Home Finance.app/Contents/MacOS/Home Finance" &
+          for i in $(seq 1 60); do curl -sf localhost:8090/healthz && exit 0; sleep 1; done
+          cat "$RUNNER_TEMP/data/home-finance.log"; exit 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Home Finance-Mac
+          path: dist/HomeFinance-Mac-*.dmg
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: build-windows.bat
+        shell: cmd
+      - name: Smoke test (the app's server answers)
+        shell: pwsh
+        run: |
+          $env:FINANCE_DATA = "$env:RUNNER_TEMP\data"
+          $p = Start-Process -PassThru "dist\Home Finance\Home Finance.exe"
+          foreach ($i in 1..60) {
+            try { Invoke-RestMethod http://127.0.0.1:8090/healthz; Stop-Process $p -Force; exit 0 } catch { Start-Sleep 1 }
+          }
+          Get-Content "$env:RUNNER_TEMP\data\home-finance.log"; exit 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Home Finance-Windows
+          path: dist/HomeFinance-Windows.zip
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [mac, windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: assets
+          merge-multiple: true
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" assets/* \
+            --title "Home Finance ${GITHUB_REF_NAME#v}" --notes-file RELEASE_NOTES.md

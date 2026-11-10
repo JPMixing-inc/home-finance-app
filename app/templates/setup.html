@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Set up · Home Finance{% endblock %}
+{% block main_class %}narrow{% endblock %}
+{% block content %}
+<div class="card auth">
+  <img src="/static/icon.svg" alt="" width="48" height="48">
+  <h1>Welcome to Home Finance</h1>
+  <p class="muted">Create the first login. You can add logins for others in your household afterwards under Settings.</p>
+  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+  <form method="post" class="stack">
+    <label>Username <input name="username" autocomplete="username" required autofocus></label>
+    <label>Password <input name="password" type="password" autocomplete="new-password" minlength="8" required></label>
+    <button class="primary">Create login</button>
+  </form>
+</div>
+{% endblock %}

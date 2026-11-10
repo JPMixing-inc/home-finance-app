@@ -10,15 +10,15 @@ jobs:
   mac:
     runs-on: macos-latest  # Apple silicon
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
       - run: ./build-mac.sh
       - name: Smoke test (the app's server answers)
         run: |
           FINANCE_DATA="$RUNNER_TEMP/data" "dist/Home Finance.app/Contents/MacOS/Home Finance" &
           for i in $(seq 1 60); do curl -sf localhost:8090/healthz && exit 0; sleep 1; done
           cat "$RUNNER_TEMP/data/home-finance.log"; exit 1
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: Home Finance-Mac
           path: dist/HomeFinance-Mac-*.dmg
@@ -26,8 +26,8 @@ jobs:
   windows:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
       - run: build-windows.bat
         shell: cmd
       - name: Smoke test (the app's server answers)
@@ -39,7 +39,7 @@ jobs:
             try { Invoke-RestMethod http://127.0.0.1:8090/healthz; Stop-Process $p -Force; exit 0 } catch { Start-Sleep 1 }
           }
           Get-Content "$env:RUNNER_TEMP\data\home-finance.log"; exit 1
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: Home Finance-Windows
           path: dist/HomeFinance-Windows.zip
@@ -51,8 +51,8 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
         with:
           path: assets
           merge-multiple: true

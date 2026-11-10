@@ -612,7 +612,7 @@ h1 { background: linear-gradient(90deg, var(--text) 35%, var(--accent-2)); -webk
 .worth-tiles { flex: 1; display: grid; grid-template-columns: repeat(4, minmax(120px, 1fr)); gap: 10px; }
 .worth-tile { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--border); }
 .worth-tile .label { text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.68rem; font-weight: 600; color: var(--muted); }
-.worth-tile .value { font-family: var(--heading); font-size: 1.15rem; font-weight: 600; }
+.worth-tile .value { font-family: var(--heading); font-size: 1.05rem; font-weight: 600; white-space: nowrap; }
 .worth-details { margin-top: 12px; }
 .worth-details summary { cursor: pointer; color: var(--muted); font-size: 0.85rem; }
 .worth-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 8px 24px; margin-top: 8px; }

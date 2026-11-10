@@ -8,6 +8,8 @@ home Wi-Fi can open it too.
 **[Download the latest release](https://github.com/JPMixing-inc/home-finance-app/releases/latest)**
 (Mac with Apple silicon, Windows 10/11)
 
+![The Home Finance dashboard: debt snowball progress, net worth, this month's income and spending](docs/screenshots/dashboard.png)
+
 ## What it does
 
 - **Dashboard:** this month's spending against your budget, net worth, and the last 12 months at a glance.
@@ -28,6 +30,25 @@ home Wi-Fi can open it too.
   Screen" makes it feel like an app.
 - **Backups:** download the whole database or export transactions as CSV any time.
 - **Automatic updates:** checks GitHub for a new version when it starts and installs it in one click.
+
+## Screenshots
+
+*All numbers are from a made-up demo household.*
+
+| | |
+|---|---|
+| ![Transactions list with categories, accounts and notes](docs/screenshots/transactions.png) | ![Monthly budget by category with spent, left and 3-month average](docs/screenshots/budget.png) |
+| **Transactions:** categorize with one click; uncategorized ones are highlighted. | **Budget:** set amounts per category and compare with your 3-month average. |
+| ![Daily view: left to spend this month and a per-day allowance](docs/screenshots/daily.png) | ![Debt snowball: current target, debt-free date and payoff chart](docs/screenshots/snowball.png) |
+| **Daily:** what's left this month, and how much you can spend per day. | **Debt snowball:** your debt-free date and how much sooner the snowball gets you there. |
+
+**On your phone** (open the address from Settings → Phone access, then Add to Home Screen):
+
+<p>
+  <img src="docs/screenshots/phone-dashboard.png" alt="Dashboard on a phone" width="260">
+  &nbsp;
+  <img src="docs/screenshots/phone-daily.png" alt="Daily spending view on a phone" width="260">
+</p>
 
 ## Install
 

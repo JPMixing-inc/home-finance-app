@@ -199,8 +199,15 @@ def _install() -> None:
         flags = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW
         subprocess.Popen(helper, env=env, stdout=log, stderr=log, creationflags=flags)
     state["phase"] = "restarting"
+    threading.Timer(1.5, _restart).start()  # give the page a moment to show "Restarting…"
+
+
+def _restart() -> None:
+    """Close the app so the helper can put the new version in place."""
     if on_restart:
-        threading.Timer(1.5, on_restart).start()  # give the page a moment to show "Restarting…"
+        on_restart()
+    else:  # no window to close (shouldn't happen in the desktop app): exit so the update isn't stuck
+        os._exit(0)
 
 
 def _prepare_mac(dmg: str, stage: str, target: str) -> list[str]:

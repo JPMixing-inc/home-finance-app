@@ -73,6 +73,8 @@ def main() -> None:
     home = f"http://127.0.0.1:{port}/"
     window = webview.create_window(TITLE, home, width=1280, height=860, min_size=(420, 500),
                                    background_color="#050506", text_select=True, zoomable=True)
+    from app import updater
+    updater.on_restart = window.destroy  # the updater closes the app, then swaps files and reopens it
 
     def current_page() -> str:
         url = window.get_current_url() or home
@@ -88,9 +90,8 @@ def main() -> None:
 
     def offer_update() -> None:
         """At startup: if GitHub has a newer release, ask whether to install it now."""
-        from app import local, updater
+        from app import local
         from app.version import VERSION
-        updater.on_restart = window.destroy  # the updater closes the app, then swaps files and reopens it
         if local.setting(updater.SETTING, "1") != "1":
             return
         if not updater.wait_for_check(20) or not updater.available():

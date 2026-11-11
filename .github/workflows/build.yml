@@ -136,7 +136,8 @@ jobs:
             Get-Process 'Home Finance' | Select-Object Id, Path | Format-Table | Out-String
             if (Test-Path "$install\_internal\base_library.zip") { "App files are in place" } else { throw "App files missing after update" }
           } finally {
-            Get-Content "$env:FINANCE_DATA\update.log" -ErrorAction SilentlyContinue
+            "--- update.log"; Get-Content "$env:FINANCE_DATA\update.log" -ErrorAction SilentlyContinue
+            "--- home-finance.log"; Get-Content "$env:FINANCE_DATA\home-finance.log" -Tail 40 -ErrorAction SilentlyContinue
             Get-Process 'Home Finance' -ErrorAction SilentlyContinue | Stop-Process -Force
           }
 

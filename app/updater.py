@@ -23,7 +23,7 @@ from typing import Callable, Optional
 from .version import VERSION
 
 REPO = "JPMixing-inc/home-finance-app"
-API = f"https://api.github.com/repos/{REPO}/releases/latest"
+API = os.environ.get("HOME_FINANCE_UPDATE_API") or f"https://api.github.com/repos/{REPO}/releases/latest"  # override: CI test
 RELEASES_PAGE = f"https://github.com/{REPO}/releases/latest"
 SETTING = "update_check"  # "0" turns off the check at startup
 
@@ -132,11 +132,13 @@ def why_not_automatic() -> str:
         return "Automatic updates aren't supported on this system."
     if not state["asset"]:
         return "This release has no download for your computer."
-    parent = os.path.dirname(target)
-    target_ok = os.access(target, os.W_OK) if MAC else _writable(target)  # don't write into a signed .app
-    if "AppTranslocation" in target or not _writable(parent) or not target_ok:
-        return ("Home Finance can't replace itself where it's installed. On a Mac, move it to Applications "
-                "first. Otherwise download the new version and replace the old one.")
+    if MAC:  # the helper swaps the whole .app, so its folder must be writable (not the signed .app itself)
+        if "AppTranslocation" in target or not _writable(os.path.dirname(target)) or not os.access(target, os.W_OK):
+            return ("Home Finance can't replace itself where it's installed. Move it to Applications first, "
+                    "or download the new version and drag it into Applications.")
+    elif not _writable(target):  # Windows: the installer writes into the app's folder
+        return ("Home Finance can't update the folder it's installed in. Download "
+                "HomeFinance-Windows-Setup.exe from the release page and run it.")
     return ""
 
 

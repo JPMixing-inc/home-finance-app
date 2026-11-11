@@ -64,26 +64,44 @@ jobs:
             dist/HomeFinance-Windows-Setup.exe
             dist/HomeFinance-Windows.zip
 
-  # Manual runs only: install an "old" 0.0.1 Windows app, let it update itself from the latest
-  # GitHub release, and check the new version comes back up. (Needs a release with the Setup .exe.)
+  # Manual runs only: build this version's installer and serve it as a fake "latest release" on
+  # localhost, then install an "old" 0.0.1 app, let it update itself, and check the new version
+  # comes back up in the same folder.
   windows-update-test:
     if: github.event_name == 'workflow_dispatch'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.3.3
-      - name: Pretend to be version 0.0.1
-        shell: pwsh
-        run: (Get-Content app/version.py) -replace 'VERSION = ".*"', 'VERSION = "0.0.1"' | Set-Content app/version.py
       - name: Install Inno Setup if missing
         shell: pwsh
         run: if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) { choco install innosetup -y --no-progress }
       - run: build-windows.bat
         shell: cmd
-      - name: Update from the latest release
+      - name: Serve this build as the latest release
+        shell: pwsh
+        run: |
+          $rel = "$env:RUNNER_TEMP\release"
+          New-Item -ItemType Directory $rel | Out-Null
+          Move-Item "dist\HomeFinance-Windows-Setup.exe" $rel
+          $file = Get-Item "$rel\HomeFinance-Windows-Setup.exe"
+          $version = (Select-String -Path app\version.py -Pattern 'VERSION = "(.+)"').Matches[0].Groups[1].Value
+          @{ tag_name = "v$version"; body = "Test release"; html_url = "https://example.invalid/";
+             assets = @(@{ name = $file.Name; browser_download_url = "http://127.0.0.1:8765/$($file.Name)"; size = $file.Length;
+                           digest = "sha256:" + (Get-FileHash $file -Algorithm SHA256).Hash.ToLower() }) } |
+            ConvertTo-Json -Depth 5 | Set-Content "$rel\latest.json"
+          Start-Process uv -ArgumentList "run", "--no-project", "python", "-I", "-m", "http.server", "8765", "--bind", "127.0.0.1", "--directory", $rel
+          "EXPECTED_VERSION=$version" >> $env:GITHUB_ENV
+      - name: Pretend to be version 0.0.1
+        shell: pwsh
+        run: (Get-Content app/version.py) -replace 'VERSION = ".*"', 'VERSION = "0.0.1"' | Set-Content app/version.py
+      - run: build-windows.bat
+        shell: cmd
+      - name: Update to the served release
         shell: pwsh
         run: |
           $env:FINANCE_DATA = "$env:RUNNER_TEMP\upd"
+          $env:HOME_FINANCE_UPDATE_API = "http://127.0.0.1:8765/latest.json"
           $install = "$env:RUNNER_TEMP\install"
           Start-Process -Wait "dist\HomeFinance-Windows-Setup.exe" -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/DIR=`"$install`""
           $exe = "$install\Home Finance.exe"
@@ -103,7 +121,7 @@ jobs:
             $p = Start-Process -PassThru $exe
             $h = Wait-Health { param($h) $h.version -eq '0.0.1' }
             "Running: $($h | ConvertTo-Json -Compress)"
-            Invoke-WebRequest http://127.0.0.1:8090/update -UseBasicParsing | Out-Null   # checks GitHub
+            Invoke-WebRequest http://127.0.0.1:8090/update -UseBasicParsing | Out-Null   # checks for the update
             Invoke-RestMethod -Method Post http://127.0.0.1:8090/api/update/start -Headers @{ 'X-Home-Finance' = '1' }
             foreach ($i in 1..120) {
               $s = Invoke-RestMethod http://127.0.0.1:8090/api/update/status
@@ -113,7 +131,7 @@ jobs:
             }
             if ($s.phase -ne 'restarting') { throw "Update didn't start: $($s.error)" }
             Wait-Process -Id $p.Id -Timeout 60
-            $h = Wait-Health { param($h) $h.version -ne '0.0.1' }
+            $h = Wait-Health { param($h) $h.version -eq $env:EXPECTED_VERSION }
             "Updated and running again: $($h | ConvertTo-Json -Compress)"
             Get-Process 'Home Finance' | Select-Object Id, Path | Format-Table | Out-String
             if (Test-Path "$install\_internal\base_library.zip") { "App files are in place" } else { throw "App files missing after update" }

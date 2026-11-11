@@ -16,11 +16,10 @@ app is open.
             System Settings > Privacy & Security, scroll down, and click
             "Open Anyway". You only do this once.
 
-  Windows:  Right-click the zip, choose "Extract All", and keep the
-            "Home Finance" folder somewhere such as Documents. Open it and
-            double-click "Home Finance.exe". To pin it, right-click the exe
-            and choose "Pin to Start" or "Send to > Desktop (create
-            shortcut)".
+  Windows:  The download is the whole app in one .exe file. Move it
+            somewhere it can stay, such as Documents, and double-click
+            it. To pin it, right-click it and choose "Pin to Start" or
+            "Send to > Desktop (create shortcut)".
             If a blue "Windows protected your PC" box appears, click
             "More info", then "Run anyway".
             When Windows asks about the firewall, allow "Private networks".

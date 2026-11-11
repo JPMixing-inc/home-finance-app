@@ -1,5 +1,5 @@
 @echo off
-rem Build "Home Finance.exe" (in dist\Home Finance\) and a zip to share. Run on Windows.
+rem Build one self-contained "dist\HomeFinance-Windows.exe" to share. Run on Windows.
 setlocal
 cd /d "%~dp0"
 
@@ -16,8 +16,15 @@ if not defined UV (
 if not exist .build-venv\Scripts\python.exe "%UV%" venv --quiet --clear --python 3.13 .build-venv || goto :fail
 "%UV%" pip install --quiet --python .build-venv\Scripts\python.exe -r requirements.txt -r requirements-desktop.txt || goto :fail
 .build-venv\Scripts\pyinstaller.exe --noconfirm --clean --log-level WARN HomeFinance.spec || goto :fail
-powershell -NoProfile -Command "Compress-Archive -Force -Path 'dist\Home Finance','Read Me First.txt' -DestinationPath 'dist\HomeFinance-Windows.zip'" || goto :fail
-echo Built "dist\Home Finance\Home Finance.exe" and "dist\HomeFinance-Windows.zip"
+copy /y "dist\Home Finance.exe" "dist\HomeFinance-Windows.exe" >nul || goto :fail
+rem Version 1.1.0 can only update itself from a zip holding "Home Finance\Home Finance.exe", so the
+rem release also carries one. It can be dropped once nobody is on 1.1.0.
+if exist dist\legacy rmdir /s /q dist\legacy
+mkdir "dist\legacy\Home Finance" || goto :fail
+copy /y "dist\Home Finance.exe" "dist\legacy\Home Finance\" >nul || goto :fail
+powershell -NoProfile -Command "Compress-Archive -Force -Path 'dist\legacy\Home Finance' -DestinationPath 'dist\HomeFinance-Windows.zip'" || goto :fail
+rmdir /s /q dist\legacy
+echo Built "dist\HomeFinance-Windows.exe"
 exit /b 0
 
 :fail

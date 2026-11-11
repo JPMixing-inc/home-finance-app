@@ -39,18 +39,20 @@ jobs:
         shell: pwsh
         run: |
           $env:FINANCE_DATA = "$env:RUNNER_TEMP\data"
-          $p = Start-Process -PassThru "dist\Home Finance\Home Finance.exe"
+          Start-Process "dist\HomeFinance-Windows.exe"
           foreach ($i in 1..60) {
-            try { Invoke-RestMethod http://127.0.0.1:8090/healthz; Stop-Process $p -Force; exit 0 } catch { Start-Sleep 1 }
+            try { Invoke-RestMethod http://127.0.0.1:8090/healthz; Get-Process HomeFinance-Windows | Stop-Process -Force; exit 0 } catch { Start-Sleep 1 }
           }
           Get-Content "$env:RUNNER_TEMP\data\home-finance.log"; exit 1
       - uses: actions/upload-artifact@v7
         with:
           name: Home Finance-Windows
-          path: dist/HomeFinance-Windows.zip
+          path: |
+            dist/HomeFinance-Windows.exe
+            dist/HomeFinance-Windows.zip
 
   # Manual runs only: build an "old" 0.0.1 Windows app, let it update itself from the latest
-  # GitHub release, and check the new version comes back up.
+  # GitHub release, and check the new version comes back up. (Needs a release that has the .exe.)
   windows-update-test:
     if: github.event_name == 'workflow_dispatch'
     runs-on: windows-latest
@@ -67,8 +69,9 @@ jobs:
         run: |
           $env:FINANCE_DATA = "$env:RUNNER_TEMP\upd"
           $install = "$env:RUNNER_TEMP\install"
-          Copy-Item "dist\Home Finance" $install -Recurse
+          New-Item -ItemType Directory $install | Out-Null
           $exe = "$install\Home Finance.exe"
+          Copy-Item "dist\HomeFinance-Windows.exe" $exe
           function Wait-Health($test) {
             foreach ($i in 1..120) {
               try { $h = Invoke-RestMethod http://127.0.0.1:8090/healthz -TimeoutSec 2; if (& $test $h) { return $h } } catch {}
@@ -78,11 +81,11 @@ jobs:
           }
           try {
             # First run creates the database; then turn off the startup prompt so no dialog is open.
-            $p = Start-Process -PassThru $exe
+            Start-Process $exe
             Wait-Health { $true } | Out-Null
-            Stop-Process $p -Force; Start-Sleep 2
+            Get-Process 'Home Finance' | Stop-Process -Force; Start-Sleep 2
             uv run --no-project python -c "import sqlite3,os; c=sqlite3.connect(os.path.join(os.environ['FINANCE_DATA'],'finance.db')); c.execute('INSERT OR REPLACE INTO settings (key,value) VALUES (?,?)',('update_check','0')); c.commit()"
-            $p = Start-Process -PassThru $exe
+            Start-Process $exe
             $h = Wait-Health { param($h) $h.version -eq '0.0.1' }
             "Running: $($h | ConvertTo-Json -Compress)"
             Invoke-WebRequest http://127.0.0.1:8090/update -UseBasicParsing | Out-Null   # checks GitHub
@@ -94,10 +97,10 @@ jobs:
               Start-Sleep 1
             }
             if ($s.phase -ne 'restarting') { throw "Update didn't start: $($s.error)" }
-            Wait-Process -Id $p.Id -Timeout 60
             $h = Wait-Health { param($h) $h.version -ne '0.0.1' }
             "Updated and running again: $($h | ConvertTo-Json -Compress)"
             Get-Process 'Home Finance' | Select-Object Id, Path | Format-Table | Out-String
+            Get-ChildItem $install | Format-Table Name, Length | Out-String
           } finally {
             Get-Content "$env:FINANCE_DATA\update.log" -ErrorAction SilentlyContinue
             Get-Process 'Home Finance' -ErrorAction SilentlyContinue | Stop-Process -Force

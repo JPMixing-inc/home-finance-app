@@ -1,9 +1,9 @@
 """Check GitHub for a newer release and install it in place (desktop app only).
 
 Flow: check() asks the GitHub API for the latest release. start() downloads the right asset
-(.dmg on Mac, .zip on Windows), checks its SHA-256 against GitHub's digest, unpacks it next to
-the app, and starts a small helper script that waits for this process to exit, swaps the new
-files in and relaunches. The data folder is never touched.
+(.dmg on Mac, a single .exe on Windows), checks its SHA-256 against GitHub's digest, and starts a
+small helper script that waits for this process to exit, swaps the new app in and relaunches.
+The data folder is never touched.
 """
 from __future__ import annotations
 
@@ -17,7 +17,6 @@ import sys
 import tempfile
 import threading
 import urllib.request
-import zipfile
 from typing import Callable, Optional
 
 from .version import VERSION
@@ -62,7 +61,7 @@ def asset_name() -> Optional[str]:
     if MAC:
         return "HomeFinance-Mac-AppleSilicon.dmg" if platform.machine() == "arm64" else "HomeFinance-Mac-Intel.dmg"
     if WINDOWS:
-        return "HomeFinance-Windows.zip"
+        return "HomeFinance-Windows.exe"
     return None
 
 
@@ -103,7 +102,7 @@ def wait_for_check(timeout: float) -> bool:
 # ---------------------------------------------------------------- installing
 
 def install_target() -> Optional[str]:
-    """The folder or .app bundle to replace, when this is a packaged app."""
+    """The .app bundle (Mac) or .exe (Windows) to replace, when this is a packaged app."""
     if not FROZEN:
         return None
     exe = os.path.realpath(sys.executable)
@@ -111,8 +110,26 @@ def install_target() -> Optional[str]:
         bundle = os.path.dirname(os.path.dirname(os.path.dirname(exe)))
         return bundle if bundle.endswith(".app") else None
     if WINDOWS:
-        return os.path.dirname(exe)
+        return exe
     return None
+
+
+def remove_old_files() -> None:
+    """Tidy up after updates on Windows. Up to 1.1.0 the app was a folder (Home Finance.exe plus an
+    _internal folder); it's one .exe now, so a 1.1.0 install that updated itself has a leftover
+    _internal folder. And the updater's "<name>.exe.old" can be left behind if it was still locked."""
+    if not (FROZEN and WINDOWS):
+        return
+    exe = os.path.realpath(sys.executable)
+    try:
+        os.remove(exe + ".old")
+    except OSError:
+        pass
+    old = os.path.join(os.path.dirname(exe), "_internal")
+    ours = os.path.isfile(os.path.join(old, "base_library.zip"))  # PyInstaller's marker file
+    in_use = os.path.normcase(os.path.realpath(old)) == os.path.normcase(os.path.realpath(sys._MEIPASS))
+    if ours and not in_use:
+        shutil.rmtree(old, ignore_errors=True)
 
 
 def _writable(folder: str) -> bool:
@@ -133,7 +150,7 @@ def why_not_automatic() -> str:
     if not state["asset"]:
         return "This release has no download for your computer."
     parent = os.path.dirname(target)
-    target_ok = os.access(target, os.W_OK) if MAC else _writable(target)  # don't write into a signed .app
+    target_ok = os.access(target, os.W_OK)  # on a Mac, don't write into the .app itself (it's signed)
     if "AppTranslocation" in target or not _writable(parent) or not target_ok:
         return ("Home Finance can't replace itself where it's installed. On a Mac, move it to Applications "
                 "first. Otherwise download the new version and replace the old one.")
@@ -240,29 +257,36 @@ rm -rf "$STAGE"
 
 
 def _prepare_windows(package: str, stage: str, target: str) -> list[str]:
-    unpacked = os.path.join(stage, "new")
-    with zipfile.ZipFile(package) as z:
-        z.extractall(unpacked)
-    new = os.path.join(unpacked, "Home Finance")
-    if not os.path.isfile(os.path.join(new, "Home Finance.exe")):
-        raise RuntimeError("The download doesn't contain Home Finance.exe.")
+    with open(package, "rb") as f:
+        if f.read(2) != b"MZ":
+            raise RuntimeError("The download isn't a Windows program.")
     script = os.path.join(stage, "update.ps1")
     with open(script, "w", encoding="utf-8") as f:
         f.write(WINDOWS_HELPER)
     return ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File", script,
-            "-ProcId", str(os.getpid()), "-New", new, "-Dir", target, "-Stage", stage]
+            "-ProcId", str(os.getpid()), "-New", package, "-Exe", target, "-Stage", stage]
 
 
-WINDOWS_HELPER = r"""# Home Finance updater: wait for the app to quit, copy the new files over, reopen it.
-param([int]$ProcId, [string]$New, [string]$Dir, [string]$Stage)
+WINDOWS_HELPER = r"""# Home Finance updater: wait for the app to quit, swap the new .exe in, reopen it.
+param([int]$ProcId, [string]$New, [string]$Exe, [string]$Stage)
 Wait-Process -Id $ProcId -Timeout 120 -ErrorAction SilentlyContinue
 Start-Sleep -Seconds 1
-robocopy "$New\_internal" "$Dir\_internal" /MIR /R:10 /W:1 /NFL /NDL /NJH /NJS | Out-Null
-foreach ($i in 1..20) {
-  try { Copy-Item "$New\Home Finance.exe" "$Dir\Home Finance.exe" -Force -ErrorAction Stop; break }
-  catch { Start-Sleep -Seconds 1 }
+$next = "$Exe.new"; $old = "$Exe.old"
+try {
+  Copy-Item -LiteralPath $New -Destination $next -Force -ErrorAction Stop
+  # A running or just-closed .exe can't be overwritten, but it can be renamed out of the way.
+  Remove-Item -LiteralPath $old -Force -ErrorAction SilentlyContinue
+  [IO.File]::Move($Exe, $old)
+  try { [IO.File]::Move($next, $Exe) }
+  catch { "Swap failed; putting the old version back. $_"; [IO.File]::Move($old, $Exe); throw }
+} catch {
+  "Update failed: $_"
+  Remove-Item -LiteralPath $next -Force -ErrorAction SilentlyContinue
 }
-Start-Process -FilePath "$Dir\Home Finance.exe" -WorkingDirectory $Dir
-Start-Sleep -Seconds 2
+Start-Process -FilePath $Exe -WorkingDirectory (Split-Path -Parent $Exe)
+foreach ($i in 1..30) {  # the old .exe stays locked until its launcher finishes cleaning up
+  if (-not (Test-Path -LiteralPath $old)) { break }
+  Remove-Item -LiteralPath $old -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 1
+}
 Remove-Item -LiteralPath $Stage -Recurse -Force -ErrorAction SilentlyContinue
 """

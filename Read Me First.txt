@@ -16,12 +16,11 @@ app is open.
             System Settings > Privacy & Security, scroll down, and click
             "Open Anyway". You only do this once.
 
-  Windows:  The download is the whole app in one .exe file. Move it
-            somewhere it can stay, such as Documents, and double-click
-            it. To pin it, right-click it and choose "Pin to Start" or
-            "Send to > Desktop (create shortcut)".
-            If a blue "Windows protected your PC" box appears, click
-            "More info", then "Run anyway".
+  Windows:  Run HomeFinance-Windows-Setup.exe. If a blue "Windows
+            protected your PC" box appears, click "More info", then
+            "Run anyway". Click Install. It installs just for you (no
+            admin prompt) and adds Home Finance to the Start menu.
+            To uninstall, use Settings > Apps.
             When Windows asks about the firewall, allow "Private networks".
             That lets your phone connect.
 

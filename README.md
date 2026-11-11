@@ -64,13 +64,14 @@ home Wi-Fi can open it too.
 > or [build it yourself](#building-the-apps).
 
 ### Windows
-1. Download **HomeFinance-Windows.exe** from the
-   [latest release](https://github.com/JPMixing-inc/home-finance-app/releases/latest). It's the
-   whole app in one file; there's nothing to install or unzip.
-2. Move it somewhere it can stay, such as Documents (rename it if you like), and double-click it.
-   If "Windows protected your PC" appears, click **More info → Run anyway**. When Windows asks
-   about the firewall, allow **Private networks** so your phone can connect.
-3. To pin it, right-click the file and choose **Pin to Start**.
+1. Download **HomeFinance-Windows-Setup.exe** from the
+   [latest release](https://github.com/JPMixing-inc/home-finance-app/releases/latest) and run it.
+   If "Windows protected your PC" appears, click **More info → Run anyway**.
+2. Click **Install**. It installs just for you, so there's no admin prompt, and adds Home Finance
+   to the Start menu (and the desktop, if you tick that box).
+3. When Windows asks about the firewall, allow **Private networks** so your phone can connect.
+
+To uninstall, use **Settings → Apps**. Your data folder is kept.
 
 > The release also has a **HomeFinance-Windows.zip**. Ignore it; version 1.1.0 uses it to update
 > itself.
@@ -246,10 +247,13 @@ Put it behind HTTPS (a reverse proxy) if it's reachable from outside your home.
 ### Building the apps
 - **Mac:** `./build-mac.sh` produces `dist/Home Finance.app` and `dist/HomeFinance-Mac-<chip>.dmg`,
   built for the chip of the Mac you run it on.
-- **Windows:** run `build-windows.bat` on Windows to get `dist\HomeFinance-Windows.exe`, a single
-  self-contained exe (plus the zip that 1.1.0 needs to update itself).
+- **Windows:** install [Inno Setup 6](https://jrsoftware.org/isdl.php), then run `build-windows.bat`
+  on Windows to get the installer, `dist\HomeFinance-Windows-Setup.exe` (plus the zip that 1.1.0
+  needs to update itself). The installer recipe is
+  [`packaging/windows-installer.iss`](packaging/windows-installer.iss).
 - **GitHub Actions:** [`.github/workflows/build.yml`](.github/workflows/build.yml) builds and smoke-tests
-  both. A manual run from the Actions tab also tests a Windows self-update from the latest release.
+  both (on Windows: install, start, uninstall). A manual run from the Actions tab also tests a Windows
+  self-update from the latest release.
 
 **Releasing a new version:**
 1. Set `VERSION` in [`app/version.py`](app/version.py), e.g. `"1.2.0"`.

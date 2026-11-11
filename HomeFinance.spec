@@ -17,12 +17,10 @@ a = Analysis(
     excludes=["tkinter"],
 )
 pyz = PYZ(a.pure)
+exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name="Home Finance", console=False, icon=ICON, upx=False)
+coll = COLLECT(exe, a.binaries, a.datas, name="Home Finance", upx=False)
 
-if not MAC:  # Windows: one self-contained "Home Finance.exe" (it unpacks itself to a temp folder each launch)
-    exe = EXE(pyz, a.scripts, a.binaries, a.datas, [], name="Home Finance", console=False, icon=ICON, upx=False)
-else:  # Mac: the usual folder layout, wrapped in an .app bundle
-    exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name="Home Finance", console=False, icon=ICON, upx=False)
-    coll = COLLECT(exe, a.binaries, a.datas, name="Home Finance", upx=False)
+if MAC:
     app = BUNDLE(
         coll,
         name="Home Finance.app",

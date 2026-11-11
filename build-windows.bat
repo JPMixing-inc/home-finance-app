@@ -1,5 +1,6 @@
 @echo off
-rem Build one self-contained "dist\HomeFinance-Windows.exe" to share. Run on Windows.
+rem Build the Windows installer, dist\HomeFinance-Windows-Setup.exe, to share. Run on Windows.
+rem Needs Inno Setup 6 (https://jrsoftware.org/isdl.php, or: winget install JRSoftware.InnoSetup).
 setlocal
 cd /d "%~dp0"
 
@@ -13,18 +14,26 @@ if not defined UV (
   set "UV=%USERPROFILE%\.local\bin\uv.exe"
 )
 
+set "ISCC="
+for /f "delims=" %%i in ('where iscc 2^>nul') do if not defined ISCC set "ISCC=%%i"
+for %%d in ("%ProgramFiles(x86)%" "%ProgramFiles%" "%LOCALAPPDATA%\Programs") do (
+  if not defined ISCC if exist "%%~d\Inno Setup 6\ISCC.exe" set "ISCC=%%~d\Inno Setup 6\ISCC.exe"
+)
+if not defined ISCC (
+  echo Inno Setup 6 isn't installed. Get it from https://jrsoftware.org/isdl.php
+  echo or run: winget install JRSoftware.InnoSetup
+  goto :fail
+)
+
 if not exist .build-venv\Scripts\python.exe "%UV%" venv --quiet --clear --python 3.13 .build-venv || goto :fail
 "%UV%" pip install --quiet --python .build-venv\Scripts\python.exe -r requirements.txt -r requirements-desktop.txt || goto :fail
 .build-venv\Scripts\pyinstaller.exe --noconfirm --clean --log-level WARN HomeFinance.spec || goto :fail
-copy /y "dist\Home Finance.exe" "dist\HomeFinance-Windows.exe" >nul || goto :fail
-rem Version 1.1.0 can only update itself from a zip holding "Home Finance\Home Finance.exe", so the
-rem release also carries one. It can be dropped once nobody is on 1.1.0.
-if exist dist\legacy rmdir /s /q dist\legacy
-mkdir "dist\legacy\Home Finance" || goto :fail
-copy /y "dist\Home Finance.exe" "dist\legacy\Home Finance\" >nul || goto :fail
-powershell -NoProfile -Command "Compress-Archive -Force -Path 'dist\legacy\Home Finance' -DestinationPath 'dist\HomeFinance-Windows.zip'" || goto :fail
-rmdir /s /q dist\legacy
-echo Built "dist\HomeFinance-Windows.exe"
+for /f "delims=" %%v in ('.build-venv\Scripts\python.exe -c "from app.version import VERSION; print(VERSION)"') do set "VER=%%v"
+"%ISCC%" /Q /DAppVersion=%VER% packaging\windows-installer.iss || goto :fail
+rem Version 1.1.0 can only update itself from this zip of the app folder, so releases still carry
+rem it. Drop it once nobody is on 1.1.0.
+powershell -NoProfile -Command "Compress-Archive -Force -Path 'dist\Home Finance','Read Me First.txt' -DestinationPath 'dist\HomeFinance-Windows.zip'" || goto :fail
+echo Built "dist\HomeFinance-Windows-Setup.exe" (and "dist\HomeFinance-Windows.zip" for 1.1.0 updates)
 exit /b 0
 
 :fail

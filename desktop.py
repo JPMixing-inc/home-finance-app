@@ -47,8 +47,6 @@ def main() -> None:
     os.makedirs(data_dir, exist_ok=True)
     send_output_to_log(data_dir)
     config = run.load_config(data_dir)
-    from app import updater
-    updater.remove_old_files()
     webview.settings["ALLOW_DOWNLOADS"] = True  # backups and CSV exports
 
     try:

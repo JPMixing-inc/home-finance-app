@@ -1,28 +1,26 @@
-## Home Finance 1.2.0: a real Windows installer
+## Home Finance 1.2.1: mark debts paid off, and a Windows fix
 
 ### New
-- **Windows installer.** Windows now has **HomeFinance-Windows-Setup.exe**: run it, click
-  **Install**, done. Nothing to unzip. It installs just for you (no admin prompt), adds Home Finance
-  to the Start menu (and the desktop, if you tick the box), and can be uninstalled from
-  **Settings → Apps**. Your data folder is kept either way.
-- **Updates on Windows use the installer.** The app downloads the new installer, runs it quietly in
-  the background and reopens itself.
+- **Debt snowball: mark a debt paid off.** Each debt has **✓ Paid off** and **✓ Paid off & closed**
+  buttons. The debt drops to $0, leaves the snowball (its payment rolls into the next one) and
+  moves to the **Paid off** list. Closing also sets the account's balance to $0 on the Accounts page
+  and in net worth, and bank sync stops changing it, so a closed card no longer leaves an old balance
+  behind. **Undo** puts a debt back.
+- **See how far you've come.** The Paid off list shows each debt's original amount with a full green
+  bar and the date it was paid off, and the **All debts** progress bar shows paid-off debts in green.
 
 ### Fixed
-- **Updates:** clicking **Update now** right after opening the app could leave the update stuck on
-  "Restarting…". The app now always closes so the new version can go in.
-- **Daily:** fixed monthly bills no longer make a day look like you're spending too fast, and the
-  per-day amounts line up on phones.
-- **Net worth:** negative amounts stay on one line (the minus sign used to wrap in the Debt tile).
-- **Settings → Phone access:** the QR code and the instructions sit side by side.
+- **Windows:** the app no longer fails to open with "Failed to resolve
+  Python.Runtime.Loader.Initialize" when it was unzipped from **HomeFinance-Windows.zip** instead of
+  installed with the Setup exe. (Windows marks unzipped downloads as "from the internet" and refused
+  to load the window's files. The app now clears that mark on its own files.)
 
-### Updating from 1.1.0
-Click **Update now** when the app asks, or choose **Tools → Check for Updates…**. On Windows, your
-existing Home Finance folder is upgraded in place and gets a Start menu entry and an uninstaller.
-There's no need to download anything by hand.
+### Updating
+Click **Update now** when the app asks, or choose **Tools → Check for Updates…**.
 
-If you'd rather install fresh on Windows, run the Setup exe, then delete your old Home Finance
-folder. Your data isn't in that folder, so nothing is lost.
+**If the Windows app won't open at all** (the error above), it can't update itself. Download
+**HomeFinance-Windows-Setup.exe** below and run it, then delete the old unzipped Home Finance folder.
+Your data isn't in that folder, so nothing is lost.
 
 ### Downloads
 | File | For |

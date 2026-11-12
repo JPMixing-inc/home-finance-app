@@ -70,6 +70,13 @@ def load_debts(conn) -> list[dict]:
             d["synced"] = False
         d["info"] = json.loads(d["details"]) if d["details"] else {}
         d["known"] = d["synced"] or d["balance_cents"] is not None
+        # Marked paid off by hand: counts as $0 here whatever the bank (or a stale balance) says.
+        d["closed"] = d["payoff_status"] == "closed"
+        d["bank_balance"] = None
+        if d["payoff_status"]:
+            if d["synced"] and not d["closed"] and d["balance"] > 0:
+                d["bank_balance"] = d["balance"]  # bank still shows something owed
+            d["balance"], d["known"] = 0, True
         start = d["start_balance_cents"] or 0
         if not start and d["known"]:
             # Added before its first balance arrived: count progress from the first known balance
@@ -189,11 +196,16 @@ def plan(conn) -> dict:
     chart = path_chart(active, snow, base)
     start_total = sum(d["start"] for d in debts if d["known"])
     paid_total = sum(d["paid"] for d in debts if d["known"])
+    paid_off = [d for d in debts if d["paid_off"]]
+    cleared_total = sum(d["start"] for d in paid_off)  # debts gone completely (green on the bar)
     return {
         "debts": priority,
         "side": side,
         "active": active,
-        "paid_off": [d for d in debts if d["paid_off"]],
+        "paid_off": sorted(paid_off, key=lambda d: d.get("paid_off_on") or "", reverse=True),
+        "cleared_total": cleared_total,
+        "pct_cleared": round(cleared_total * 100 / start_total, 1) if start_total else 0,
+        "pct_progress": round((paid_total - cleared_total) * 100 / start_total, 1) if start_total else 0,
         "excluded": [d for d in everything if not d["included"]],
         "groups": groups(everything),
         "target": active[0] if active else None,
@@ -251,9 +263,43 @@ def record_balances(conn) -> None:
 
 
 def first_paid_off_date(conn, debt_id: int) -> Optional[str]:
+    row = conn.execute("SELECT paid_off_on FROM debts WHERE id = ?", (debt_id,)).fetchone()
+    if row and row[0]:
+        return row[0]
     row = conn.execute("SELECT MIN(date) FROM debt_history WHERE debt_id = ? AND balance_cents = 0",
                        (debt_id,)).fetchone()
     return row[0] if row else None
+
+
+def mark_paid_off(conn, debt_id: int, closed: bool) -> Optional[str]:
+    """Mark a debt paid off by hand (closed=True: the account is closed too). Returns its title.
+
+    The original balance is kept as the starting balance so the paid-off list can show it. A closed
+    account's balance is set to $0 and bank sync stops changing it (see bank_sync.update_accounts),
+    so net worth and the accounts page agree.
+    """
+    d = next((x for x in load_debts(conn) if x["id"] == debt_id), None)
+    if not d:
+        return None
+    conn.execute(  # d["start"] is already the larger of the starting and current balance
+        """UPDATE debts SET payoff_status = ?, paid_off_on = COALESCE(paid_off_on, ?),
+                  start_balance_cents = ? WHERE id = ?""",
+        ("closed" if closed else "paid", date.today().isoformat(), d["start"], debt_id))
+    if closed and d["account_id"]:
+        conn.execute("UPDATE accounts SET balance_cents = 0, balance_at = ? WHERE id = ?",
+                     (date.today().isoformat(), d["account_id"]))
+    conn.commit()
+    record_balances(conn)
+    return d["title"]
+
+
+def reopen(conn, debt_id: int) -> None:
+    """Undo a by-hand payoff. A synced account gets its real balance back at the next bank sync."""
+    # The $0 snapshots taken while it was marked paid off weren't real balances
+    conn.execute("""DELETE FROM debt_history WHERE debt_id = ? AND balance_cents = 0
+                    AND date >= (SELECT paid_off_on FROM debts WHERE id = ?)""", (debt_id, debt_id))
+    conn.execute("UPDATE debts SET payoff_status = '', paid_off_on = NULL WHERE id = ?", (debt_id,))
+    conn.commit()
 
 
 # ---------------------------------------------------------------- loan statements

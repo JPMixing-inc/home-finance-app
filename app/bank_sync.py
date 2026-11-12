@@ -159,9 +159,10 @@ def update_accounts(conn, item_row_id: int, accounts: list[dict]) -> None:
         cents = int((Decimal(str(current)) * 100).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
         if a.get("type") in ("credit", "loan"):
             cents = -cents  # what's owed
-        conn.execute(
+        conn.execute(  # an account closed in the debt snowball stays at $0
             """UPDATE accounts SET balance_cents = ?, balance_at = ? WHERE id =
-               (SELECT account_id FROM plaid_accounts WHERE plaid_account_id = ?)""",
+               (SELECT account_id FROM plaid_accounts WHERE plaid_account_id = ?)
+               AND id NOT IN (SELECT account_id FROM debts WHERE payoff_status = 'closed' AND account_id IS NOT NULL)""",
             (cents, now, a["account_id"]),
         )
 

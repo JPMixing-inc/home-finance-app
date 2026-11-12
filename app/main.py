@@ -1225,6 +1225,14 @@ def snowball_debt_action(debt_id: int, action: str):
             conn.execute("UPDATE debts SET included = ? WHERE id = ?", (modes[action], debt_id))
         elif action == "delete":
             conn.execute("DELETE FROM debts WHERE id = ? AND account_id IS NULL", (debt_id,))
+        elif action in ("paid", "closed"):
+            title = snowball.mark_paid_off(conn, debt_id, closed=action == "closed")
+            if title:
+                what = "paid off and closed" if action == "closed" else "paid off"
+                return back("/snowball?" + urlencode({"msg": f"🎉 {title} marked {what}."}) + "#paid-off")
+        elif action == "reopen":
+            snowball.reopen(conn, debt_id)
+            return back("/snowball?msg=Moved+back+into+the+snowball.")
         conn.commit()
     finally:
         conn.close()

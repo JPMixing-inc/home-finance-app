@@ -768,3 +768,23 @@ h1 { background: linear-gradient(90deg, var(--text) 35%, var(--accent-2)); -webk
 .lender { font-weight: 700; color: var(--text); }
 .tx-desc:has(.lender), .tl-name { font-weight: 400; color: var(--text-2); }
 h2 .lender { display: block; font-size: 0.8em; color: var(--text-2); letter-spacing: 0.01em; }
+
+/* ---------- paid-off debts (green = gone for good) */
+.fill.done { background: var(--pos); box-shadow: 0 0 10px color-mix(in srgb, var(--pos) 45%, transparent); }
+.track.stacked { display: flex; }
+.track.stacked .fill { flex: none; border-radius: 0; }
+.key-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; vertical-align: 0; }
+.key-dot.done { background: var(--pos); }
+.good-link, .good-link:hover { color: var(--pos); }
+.paid-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.paid-list li { padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px;
+  background: color-mix(in srgb, var(--pos) 6%, transparent); }
+.paid-list li[data-bank] { border-left: 4px solid var(--bank); }
+.paid-head, .paid-foot { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.paid-amount strong { font-size: 1.1rem; }
+.paid-track { height: 22px; border-radius: 11px; margin: 8px 0 6px; }
+.paid-track .fill { border-radius: 11px; display: flex; align-items: center; padding-left: 10px; }
+.paid-track .fill span { color: #fff; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.02em; }
+.paid-actions { display: inline-flex; gap: 12px; margin: 0; }
+.closed-badge { margin-left: 6px; vertical-align: 1px; }
+:root:not([data-theme="light"]) .paid-track .fill span { color: #062b06; }

@@ -15,6 +15,7 @@
 <div class="card hero-done">
   <h2>🎉 Debt-free!</h2>
   <p>Every debt in the plan is paid off. {{ p.paid_total|money }} paid down.</p>
+  <div class="track big-track" title="100% paid"><div class="fill done" style="width: 100%"></div></div>
 </div>
 {% else %}
 {% set t = p.target %}
@@ -45,9 +46,12 @@
       <h2 class="status-critical">▲ The payments don't cover the interest</h2>
     {% endif %}
     <div class="big">{{ p.total|money }} <span class="muted">across {{ p.active|length }} debt{{ 's' if p.active|length != 1 }}</span></div>
-    <div class="track big-track" title="{{ p.pct }}% paid"><div class="fill" style="width: {{ p.pct }}%"></div></div>
+    <div class="track big-track stacked" title="{{ p.pct }}% paid">
+      <div class="fill done" style="width: {{ p.pct_cleared }}%" title="Paid off completely: {{ p.cleared_total|money }}"></div>
+      <div class="fill" style="width: {{ p.pct_progress }}%" title="Paid down on open debts: {{ (p.paid_total - p.cleared_total)|money }}"></div>
+    </div>
     <p class="muted small">{{ p.pct }}% paid · {{ p.paid_total|money }} of {{ p.start_total|money }}
-      {% if p.paid_off %}· {{ p.paid_off|length }} paid off{% endif %}</p>
+      {% if p.paid_off %}· <a href="#paid-off" class="good-link"><span class="key-dot done"></span>{{ p.paid_off|length }} paid off ({{ p.cleared_total|money }})</a>{% endif %}</p>
     <ul class="facts">
       <li>Snowball payment: <strong>{{ p.snow.monthly|money }}</strong> a month in total</li>
       {% if p.months_saved and p.months_saved > 0 %}
@@ -147,6 +151,12 @@
           {% else %}
           <button class="link small" formaction="/snowball/debts/{{ d.id }}/include">Prioritize</button>
           {% endif %}
+          <button class="link small good-link" formaction="/snowball/debts/{{ d.id }}/paid"
+            data-confirm="Mark {{ d.title }} as paid off? It moves to the Paid off list and its payment rolls into the next debt."
+            title="Paid in full: count it as $0 from now on">✓ Paid off</button>
+          <button class="link small good-link" formaction="/snowball/debts/{{ d.id }}/closed"
+            data-confirm="Mark {{ d.title }} as paid off and the account closed? Its balance is set to $0 here and bank sync stops changing it."
+            title="Paid in full and the account is closed">✓ Paid off &amp; closed</button>
           <button class="link small muted-link" formaction="/snowball/debts/{{ d.id }}/exclude"
             title="Stop counting it at all (e.g. a card you pay in full every month)">Leave out</button>
           {% if not d.account_id %}<button class="link small danger" formaction="/snowball/debts/{{ d.id }}/delete"
@@ -242,12 +252,31 @@
 {% endif %}
 
 {% if p.paid_off %}
-<section class="card">
-  <h2>Paid off ✓</h2>
-  <ul class="tx-list">
+<section class="card" id="paid-off">
+  <div class="card-head">
+    <h2>Paid off ✓</h2>
+    <span class="good">{{ p.cleared_total|money }} of debt gone</span>
+  </div>
+  <ul class="paid-list">
     {% for d in p.paid_off %}
-    <li><div><div class="tx-desc"><span class="good">✓</span> {{ who(d) }}</div>
-      <div class="muted small">{{ d.start|money }} paid off{% if d.paid_off_on %} · {{ d.paid_off_on }}{% endif %}</div></div></li>
+    <li {{ bank_attrs(brands.get(d.account_id)) }}>
+      <div class="paid-head">
+        <span class="tx-desc">{{ bank_mark(brands.get(d.account_id)) }}{{ who(d) }}
+          {% if d.closed %}<span class="badge closed-badge">Closed</span>{% endif %}</span>
+        <span class="paid-amount"><span class="muted small">Original debt</span> <strong>{{ d.start|money }}</strong></span>
+      </div>
+      <div class="track paid-track" title="100% paid off"><div class="fill done" style="width: 100%"><span>✓ Paid off</span></div></div>
+      <div class="paid-foot muted small">
+        <span>{{ d.start|money }} → <strong class="good">$0.00</strong>{% if d.paid_off_on %} · {{ d.paid_off_on }}{% endif %}
+          {% if d.bank_balance %}<span class="status-critical">· bank still shows {{ d.bank_balance|money }} owed</span>{% endif %}</span>
+        <form method="post" class="paid-actions">
+          {% if not d.closed %}<button class="link small" formaction="/snowball/debts/{{ d.id }}/closed"
+            data-confirm="Mark {{ d.title }} as closed? Its balance stays $0 here and bank sync stops changing it.">Account closed</button>{% endif %}
+          {% if d.payoff_status %}<button class="link small muted-link" formaction="/snowball/debts/{{ d.id }}/reopen"
+            data-confirm="Put {{ d.title }} back into the snowball?">Undo</button>{% endif %}
+        </form>
+      </div>
+    </li>
     {% endfor %}
   </ul>
 </section>

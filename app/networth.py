@@ -27,7 +27,8 @@ def summary(conn) -> dict:
         groups[key]["items"].append({"id": a["id"], "name": a["name"], "balance": a["balance_cents"]})
         groups[key]["total"] += a["balance_cents"]
     for d in conn.execute(
-            "SELECT name, balance_cents, group_name FROM debts WHERE account_id IS NULL AND balance_cents IS NOT NULL"):
+            """SELECT name, balance_cents, group_name FROM debts
+               WHERE account_id IS NULL AND balance_cents IS NOT NULL AND payoff_status = ''"""):
         groups["debt"]["items"].append({"id": None, "name": d["name"], "balance": -d["balance_cents"],
                                         "group": d["group_name"]})
         groups["debt"]["total"] -= d["balance_cents"]

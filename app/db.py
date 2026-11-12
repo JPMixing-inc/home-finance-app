@@ -160,6 +160,8 @@ MIGRATIONS = [
     ("plaid_items", "color", "TEXT NOT NULL DEFAULT ''"),  # bank brand color from Plaid
     ("plaid_items", "logo", "TEXT NOT NULL DEFAULT ''"),  # base64 PNG from Plaid
     ("debts", "lender", "TEXT NOT NULL DEFAULT ''"),  # company, for debts typed in by hand
+    ("debts", "payoff_status", "TEXT NOT NULL DEFAULT ''"),  # marked by hand: '' | 'paid' | 'closed'
+    ("debts", "paid_off_on", "TEXT"),  # date it was marked paid off
 ]
 
 # (group, name, kind) in display order

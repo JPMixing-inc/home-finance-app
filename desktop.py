@@ -25,6 +25,26 @@ def send_output_to_log(data_dir: str) -> None:
         sys.stdout = sys.stderr = log
 
 
+def unblock_app_files() -> None:
+    """Windows tags files unzipped from a browser download as "from the internet" (an NTFS
+    Zone.Identifier stream), and .NET refuses to load tagged DLLs, so pywebview's window fails with
+    "Failed to resolve Python.Runtime.Loader.Initialize". Remove the tags from the app's own DLLs
+    first, as Properties > Unblock would. The installer's files are never tagged, so this only
+    does anything for the zip."""
+    if os.name != "nt" or not getattr(sys, "frozen", False):
+        return
+    root = getattr(sys, "_MEIPASS", os.path.dirname(sys.executable))
+    if not os.path.exists(os.path.join(root, "pythonnet", "runtime", "Python.Runtime.dll:Zone.Identifier")):
+        return  # not tagged: skip walking the folder on every start
+    for folder, _, files in os.walk(root):
+        for name in files:
+            if name.lower().endswith(".dll"):
+                try:
+                    os.remove(os.path.join(folder, name) + ":Zone.Identifier")
+                except OSError:
+                    pass  # not tagged, or a read-only folder
+
+
 def show_folder(path: str) -> None:
     if sys.platform == "darwin":
         subprocess.Popen(["open", path])
@@ -46,6 +66,7 @@ def main() -> None:
     data_dir = run.default_data_dir()
     os.makedirs(data_dir, exist_ok=True)
     send_output_to_log(data_dir)
+    unblock_app_files()  # before pywebview loads its .NET DLLs (in webview.start)
     config = run.load_config(data_dir)
     webview.settings["ALLOW_DOWNLOADS"] = True  # backups and CSV exports
 

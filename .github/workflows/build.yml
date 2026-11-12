@@ -30,6 +30,7 @@ jobs:
 
   windows:
     runs-on: windows-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.3.3
@@ -39,6 +40,7 @@ jobs:
       - run: build-windows.bat
         shell: cmd
       - name: Smoke test (install silently, the app's server answers, uninstall)
+        timeout-minutes: 10
         shell: pwsh
         run: |
           $dir = "$env:RUNNER_TEMP\Installed App"
@@ -53,15 +55,21 @@ jobs:
           foreach ($i in 1..30) { if (-not (Test-Path "$dir\Home Finance.exe")) { "Uninstalled"; exit 0 }; Start-Sleep 1 }
           throw "Uninstall left the app behind"
       - name: Smoke test the zip, unzipped from a browser download
+        timeout-minutes: 10
         shell: pwsh
         run: |
           # Explorer tags every file unzipped from a download as "from the internet" (a Zone.Identifier
           # stream), and .NET then refuses to load the window's DLLs. Expand-Archive doesn't tag them,
-          # so do it by hand, like a real download.
+          # so do it by hand, like a real download. Not the exe itself: a tagged exe makes Windows
+          # ask "Run anyway?" first, which nobody can click here.
           $dir = "$env:RUNNER_TEMP\Unzipped App"
           Expand-Archive "dist\HomeFinance-Windows.zip" $dir
-          Get-ChildItem -Recurse -File $dir | ForEach-Object {
+          Get-ChildItem -Recurse -File $dir | Where-Object Extension -ne ".exe" | ForEach-Object {
             Set-Content -LiteralPath $_.FullName -Stream Zone.Identifier -Value "[ZoneTransfer]`r`nZoneId=3"
+          }
+          $runtime = "$dir\Home Finance\_internal\pythonnet\runtime\Python.Runtime.dll"
+          if (-not (Get-Item -LiteralPath $runtime -Stream Zone.Identifier -ErrorAction SilentlyContinue)) {
+            throw "Couldn't tag $runtime, so this test wouldn't prove anything"
           }
           $env:FINANCE_DATA = "$env:RUNNER_TEMP\zipdata"
           . .github\scripts\windows-test.ps1
@@ -79,6 +87,7 @@ jobs:
   windows-update-test:
     if: github.event_name == 'workflow_dispatch'
     runs-on: windows-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.3.3
